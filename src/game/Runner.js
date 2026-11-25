@@ -1,0 +1,240 @@
+// Port of scripts/game/Runner.cs (gameplay loop, object processing, scoring, health, fail/stop).
+// Godot signals -> a tiny emitter. Sections that belong to replays, autoplay, modifiers, stats
+// persistence and leaderboards are left out on purpose (outside the minimal scope).
+import { HitResult } from '../map/Note.js';
+import { BREAK_TIME } from '../constants.js';
+import { binarySearch, fround, toInt } from '../util/misc.js';
+
+export class Runner {
+  constructor(sound) {
+    this.sound = sound;
+    this.Attempt = null;
+    this.ObjectIndicesStart = {};
+    this.ObjectIndicesEnd = {};
+    this.Map = null;
+    this.Speed = 1;
+    this.Paused = false;
+    this.Playing = false;
+    this.StopQueued = false;
+    this.settings = null;
+    this.firstFrame = true;
+    this.noteTimestamps = [];
+    this.lastHitScore = 0;
+    this._handlers = {};
+    this.onStop = null; // SceneManager.Load("results") hook
+  }
+  on(name, fn) { (this._handlers[name] ??= []).push(fn); }
+  off(name, fn) { this._handlers[name] = (this._handlers[name] ?? []).filter((f) => f !== fn); }
+  emit(name, ...args) { for (const fn of this._handlers[name] ?? []) fn(...args); }
+
+  // _Process(delta): delta in seconds. In the browser build this is driven by a fixed 120 Hz stepper.
+  process(delta) {
+    if (!this.Playing) return;
+    if (this.firstFrame) { this.firstFrame = false; return; }
+    const a = this.Attempt, s = this.settings;
+    a.Progress += delta * 1000 * this.Speed;
+
+    // De-sync corrector
+    if (a.Progress > 0 && a.Progress < a.Length && !a.Stopped) {
+      const song = this.sound.song;
+      const audioDelay = a.Progress - s.LocalOffset - 1000 * song.getPlaybackPosition();
+      if (Math.abs(audioDelay / this.Speed) > Math.max(40, delta)) {
+        song.pitchScale = Math.min(Math.max(this.Speed + audioDelay / 1000, Math.max(0.01, this.Speed - 0.5)), this.Speed + 0.5);
+      } else if (Math.abs(song.pitchScale - this.Speed) > 1e-5) {
+        song.pitchScale = this.Speed;
+      }
+    }
+
+    // Song state check
+    if (a.Map.AudioBuffer != null) {
+      const song = this.sound.song;
+      const offsetProgress = a.Progress - s.LocalOffset;
+      const songEnd = song.getLength() * 1000;
+      if (!song.playing && offsetProgress >= 0 && offsetProgress < songEnd) song.play(offsetProgress / 1000);
+      else if (song.playing && offsetProgress >= songEnd) song.stop();
+    }
+
+    // Skip check
+    const passedNotes = this.ObjectIndicesStart.Note;
+    const nextNoteMillisecond = passedNotes >= a.Map.Notes.length ? Number.MAX_SAFE_INTEGER : a.Map.Notes[passedNotes].Millisecond;
+    if (nextNoteMillisecond - a.Progress >= BREAK_TIME * this.Speed) {
+      const lastNoteMillisecond = passedNotes > 0 ? a.Map.Notes[passedNotes - 1].Millisecond : 0;
+      const skipWindow = nextNoteMillisecond - BREAK_TIME - lastNoteMillisecond;
+      if (skipWindow >= 1000 * this.Speed) {
+        if (!a.CanSkip) { a.CanSkip = true; this.emit('skipAvailable', a); }
+      }
+    } else {
+      a.CanSkip = false;
+    }
+
+    this.ProcessObjects();
+
+    if (this.StopQueued || a.Progress >= a.Length) {
+      this.StopQueued = false;
+      this.Stop();
+    }
+  }
+
+  ProcessObjects() {
+    const a = this.Attempt, s = this.settings;
+    for (const type of Object.keys(a.Objects)) {
+      const objects = a.Objects[type];
+      const startIndex = this.ObjectIndicesStart[type];
+      this.ObjectIndicesEnd[type] = objects.length;
+      for (let i = startIndex; i < objects.length; i++) {
+        const obj = objects[i];
+        if (obj.DoProcess(this)) {
+          obj.Process(this);
+        } else {
+          if (obj.Millisecond > a.Progress + s.ApproachTime * 1000 * this.Speed) {
+            this.ObjectIndicesEnd[type] = Math.max(obj.Index, this.ObjectIndicesStart[type]);
+            break;
+          }
+          if (obj.Index === this.ObjectIndicesStart[type] && obj.Millisecond < Math.max(a.Progress, a.StartFrom)) {
+            this.ObjectIndicesStart[type]++;
+          }
+        }
+      }
+    }
+  }
+
+  Play(attempt, settings) {
+    if (!attempt) return;
+    this.Attempt = attempt;
+    this.settings = settings;
+    this.Map = attempt.Map;
+    this.Speed = attempt.Speed;
+    this.ObjectIndicesStart = {}; this.ObjectIndicesEnd = {};
+    for (const key of Object.keys(attempt.Objects)) {
+      this.ObjectIndicesStart[key] = attempt.FirstNote;
+      this.ObjectIndicesEnd[key] = attempt.Objects[key].length;
+    }
+    this.noteTimestamps = attempt.Objects.Note.map((n) => n.Millisecond);
+    if (!this._connected) { this._connected = true; this.on('hitResultChanged', (i, r) => this.onHitResultChanged(i, r)); }
+    this.emit('attemptStatsUpdated', attempt);
+    if (attempt.Map.AudioBuffer != null) this.sound.song.pitchScale = this.Speed;
+    this.Playing = true;
+    this.firstFrame = true;
+  }
+
+  Pause(pause = null) {
+    this.Playing = pause ?? !this.Playing;
+    this.sound.song.pitchScale = this.Speed;
+    this.sound.song.setPaused(!this.Playing);
+    if (this.Playing) this.syncSongPosition();
+  }
+
+  Skip() {
+    const a = this.Attempt;
+    if (a.CanSkip) {
+      a.ReplaySkips.push(a.Progress);
+      const passedNotes = this.ObjectIndicesStart.Note;
+      if (passedNotes >= a.Map.Notes.length) this.Stop();
+      else this.Seek(a.Map.Notes[passedNotes].Millisecond - this.settings.ApproachTime * 1500 * this.Speed);
+    }
+  }
+
+  Seek(ms) {
+    const a = this.Attempt;
+    a.Progress = ms;
+    for (const key of Object.keys(a.Objects)) {
+      this.ObjectIndicesStart[key] = binarySearch(this.noteTimestamps, ms) + 1;
+      this.ObjectIndicesEnd[key] = a.Objects[key].length;
+    }
+    this.ProcessObjects();
+    this.syncSongPosition();
+  }
+
+  Fail() {
+    const a = this.Attempt;
+    if (a.Alive) this.sound.playFailSound();
+    a.Alive = false;
+    a.Qualifies = false;
+    if (a.DeathTime === -1) a.DeathTime = Math.max(0, a.Progress);
+  }
+
+  GiveUp() { this.Fail(); this.Stop(); }
+
+  QueueStop() {
+    if (!this.Playing) return;
+    this.Playing = false;
+    this.StopQueued = true;
+  }
+
+  Stop(results = true) {
+    const a = this.Attempt;
+    if (a.Stopped) return;
+    this.ProcessObjects(); // give objects a last chance
+    this.Playing = false;
+    this.StopQueued = false;
+    a.Stopped = true;
+    if (results && this.onStop) this.onStop(a);
+  }
+
+  onHitResultChanged(noteIndex, hitResult) {
+    const a = this.Attempt;
+    const judgmentProgress = a.Progress;
+    // float lateness = (float)(((int)judgmentProgress - Notes[i].Millisecond) / Speed);
+    const lateness = fround((toInt(judgmentProgress) - a.Map.Notes[noteIndex].Millisecond) / this.Speed);
+    // float factor = 1 - Math.Max(0, lateness - 25) / 150f;
+    const factor = fround(1 - fround(Math.max(0, fround(lateness - 25)) / fround(150)));
+    const hitScore = Math.floor(100 * a.ComboMultiplier * a.ModsMultiplier * factor * ((this.Speed - 1) / 2.5 + 1)) >>> 0;
+    this.lastHitScore = hitScore;
+
+    switch (hitResult) {
+      case HitResult.Hit:
+        a.Hits++; a.Sum++;
+        a.Accuracy = Math.floor(fround(fround(a.Hits / a.Sum) * 10000)) / 100;   // Math.Floor(float*10000)/100 -> double division
+        a.Combo++; a.ComboMultiplierProgress++;
+        a.LastHitColour = this.noteColors[noteIndex % this.noteColors.length];
+        a.Score += hitScore;
+        a.HitsInfo[noteIndex] = lateness;
+        if (a.ComboMultiplierProgress === a.ComboMultiplierIncrement) {
+          if (a.ComboMultiplier < 8) {
+            a.ComboMultiplierProgress = a.ComboMultiplier === 7 ? a.ComboMultiplierIncrement : 0;
+            a.ComboMultiplier++;
+          }
+        }
+        break;
+      case HitResult.Miss:
+        a.Misses++; a.Sum++;
+        a.Accuracy = fround(Math.floor(fround(fround(a.Hits / a.Sum) * 10000)) / 100); // Mathf.Floor(...) / 100 stays float
+        a.Combo = 0; a.ComboMultiplierProgress = 0;
+        a.ComboMultiplier = Math.max(1, a.ComboMultiplier - 1);
+        a.HitsInfo[noteIndex] = -1;
+        break;
+      default: break;
+    }
+
+    if (hitResult !== HitResult.None) {
+      const hit = hitResult === HitResult.Hit;
+      this.updateHealth(hit);
+      if (a.Health <= 0 && a.Alive) this.Fail();
+      if (this.checkFail(hit, a.Health)) this.QueueStop();
+    }
+    this.emit('attemptStatsUpdated', a);
+  }
+
+  updateHealth(hit) {
+    const a = this.Attempt;
+    // (HasHealthModifier branch omitted: no modifiers in this build)
+    if (hit) {
+      a.HealthStep = Math.max(a.HealthStep / 1.45, 15);
+      a.Health = Math.min(100, a.Health + a.HealthStep / 1.75);
+    } else {
+      a.Health = Math.max(0, a.Health - a.HealthStep);
+      a.HealthStep = Math.min(a.HealthStep * 1.2, 100);
+    }
+  }
+
+  checkFail(hit, health) { return health <= 0; } // no IFailModifier present -> defaultFail
+
+  syncSongPosition() {
+    const a = this.Attempt;
+    if (a.Map.AudioBuffer != null) {
+      const song = this.sound.song;
+      if (!song.playing && this.Playing) song.play();
+      song.seek((a.Progress - a.Settings.LocalOffset) / 1000);
+    }
+  }
+}

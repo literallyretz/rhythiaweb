@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rhythia</title>
+<link rel="icon" href="assets/textures/RhythiaSquircle.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="menuCanvas"></canvas>
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Loading (scenes/loading.tscn) -->
+  <section id="loading" class="scene">
+    <canvas id="splash"></canvas>
+    <canvas id="spectrum"></canvas>
+    <div id="loadLabel">Initializing maps</div>
+    <div id="loadBar"><div id="loadFill"></div></div>
+  </section>
+
+  <!-- Main menu (scenes/main_menu.tscn, Home) -->
+  <section id="menu" class="scene hidden">
+    <header id="topbar">
+      <img class="logo" src="assets/textures/RhythiaSquircle.png" alt="">
+      <span class="ver">Rhythia <small id="ver"></small></span>
+      <div id="tabs"><button class="tab" disabled>Home</button><button class="tab" disabled>Play</button><button class="tab" disabled>Extras</button></div>
+      <div id="links">
+        <a class="ico gh" href="https://github.com/Rhythia" target="_blank" rel="noopener"></a>
+        <a class="ico dc" href="https://discord.gg/kaFPWkfZeS" target="_blank" rel="noopener"></a>
+      </div>
+    </header>
+    <nav id="homeButtons">
+      <button id="btnPlay" class="mbtn big">PLAY</button>
+      <button class="mbtn big" id="btnSettings" disabled>SETTINGS</button>
+      <button class="mbtn small" id="btnExtras" disabled>EXTRAS</button>
+      <a id="btnNotes" class="mbtn small" href="https://github.com/Rhythia/Client/releases/tag/VERSION" target="_blank" rel="noopener">RELEASE NOTES</a>
+      <button class="mbtn small" id="btnQuit" disabled>QUIT</button>
+    </nav>
+  </section>
+
+  <!-- Gameplay HUD (rendered in CSS 3D with the same camera maths as the WebGL view) -->
+  <section id="hud" class="scene hidden"><div id="hudPersp"><div id="hudRoot"></div></div><div id="gameMsg"></div></section>
+
+  <section id="pause" class="scene hidden">
+    <div id="pHide"></div>
+    <div id="pHolder">
+      <div id="pHeader">PAUSED</div><div id="pSep"></div>
+      <button id="pResume" class="pbtn" style="top:131px;left:-1px">RESUME</button>
+      <button id="pRestart" class="pbtn" style="top:215px">RESTART</button>
+      <button id="pSettings" class="pbtn" style="top:299px" disabled>SETTINGS</button>
+      <button id="pQuit" class="pbtn" style="top:383px">GIVE UP</button>
+      <div id="pNote">NOTE: Pausing disqualifies your pass</div>
+    </div>
+  </section>
+
+  <!-- Results (scenes/results.tscn) -->
+  <section id="results" class="scene hidden">
+    <div id="resCoverBg"></div><div id="resCover"></div>
+    <div id="resHolder">
+      <div id="rGraphBlur"></div>
+      <div id="rTitle" class="rl"></div><div id="rDiff" class="rl"></div><div id="rMappers" class="rl"></div><div id="rSpeed" class="rl"></div>
+      <div id="rSep"></div>
+      <div id="rAcc" class="rl"></div><div id="rHits" class="rl"></div>
+      <div id="rScore" class="rl"></div><div id="rStatus" class="rl"></div>
+      <div id="rGraph"><canvas id="rGraphC"></canvas><span id="rOffTop">0ms</span><span id="rOffBot">55ms</span><div id="rDrop"></div></div>
+    </div>
+    <header id="resTop"><img src="assets/textures/RhythiaSquircle.png" alt=""><span class="ver">Rhythia</span><span id="resTitleR">RESULTS</span></header>
+    <footer id="resFoot"><button id="rBack" class="rbtn">Back</button><button id="rPlay" class="rbtn">Play</button></footer>
+  </section>
+
+  <div id="fade"></div>
+  <div id="fatal" class="hidden"></div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

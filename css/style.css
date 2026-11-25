@@ -1,0 +1,99 @@
+@font-face{font-family:"Ubuntu";src:url(../assets/fonts/Ubuntu-Regular.ttf);font-weight:400}
+@font-face{font-family:"Ubuntu";src:url(../assets/fonts/Ubuntu-Medium.ttf);font-weight:500}
+@font-face{font-family:"Roboto";src:url(../assets/fonts/Roboto-Bold.ttf);font-weight:700}
+@font-face{font-family:"Roboto";src:url(../assets/fonts/Roboto-Medium.ttf);font-weight:500}
+@font-face{font-family:"Nunito";src:url(../assets/fonts/Nunito-Bold.ttf);font-weight:700}
+@font-face{font-family:"Nunito";src:url(../assets/fonts/Nunito-SemiBold.ttf);font-weight:600}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:"Ubuntu",sans-serif;user-select:none;-webkit-user-select:none}
+#app{position:fixed;inset:0}
+canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#gameCanvas{visibility:hidden}
+.scene{position:absolute;inset:0}
+.hidden{display:none!important}
+
+/* loading.tscn: bg #060509 after tween, splash anchored 0.2..0.8, bar at 0.9 (0.4..0.6) border/fill c90045 */
+#loading{background:#000;z-index:5}
+#splash{position:absolute;left:0;top:0;width:100%;height:100%}
+#loadLabel{position:absolute;left:0;right:0;bottom:calc(10% + 20px);text-align:center;font:400 16px Ubuntu,sans-serif;color:rgba(255,255,255,.8627);opacity:0}
+#loadBar{position:absolute;left:40%;width:20%;top:90%;height:16px;opacity:0}
+#loadBar::before{content:"";position:absolute;inset:-4px;border:1px solid #c90045;pointer-events:none}   /* StyleBoxFlat: 1 px border, expand_margin 4, no centre */
+#spectrum{position:absolute;left:8px;right:8px;top:calc(80% + 8px);bottom:8px;width:calc(100% - 16px);height:calc(20% - 16px)}
+#loadFill{position:absolute;left:0;top:0;bottom:0;width:0;background:#c90045}
+
+/* main menu */
+#menu{z-index:4}
+#topbar{position:absolute;left:0;right:0;top:0;height:72px;backdrop-filter:blur(6px) brightness(.5);-webkit-backdrop-filter:blur(6px) brightness(.5)}
+#topbar .logo{position:absolute;left:6px;top:8px;height:56px}
+.ver{position:absolute;left:64px;top:50%;transform:translateY(-50%);font-weight:500;font-size:18px;line-height:32px;white-space:nowrap}.ver small{font-size:12px;color:rgba(255,255,255,.627)}
+#tabs{position:absolute;left:25%;width:50%;top:4px;bottom:4px;display:flex;justify-content:center;align-items:stretch}
+.tab{font:500 18px Roboto,sans-serif;color:#fff;background:none;border:0;border-bottom:2px solid transparent;border-radius:4px;padding:6px 8px;cursor:pointer}
+.tab:hover:not(:disabled){background:#181818;border-bottom-color:#fff}
+.tab:disabled{background:rgba(0,0,0,.235);color:rgba(223,223,223,.5);cursor:default}
+#links{position:absolute;left:75%;right:16px;top:4px;bottom:4px;display:flex;justify-content:flex-end;align-items:center}
+.ico{display:block;width:32px;height:32px;background-size:32px 32px}
+.gh{background-image:url(../assets/textures/ui/github.png)}.gh:hover{background-image:url(../assets/textures/ui/github_hovered.png)}.gh:active{background-image:url(../assets/textures/ui/github_pressed.png)}
+.dc{background-image:url(../assets/textures/ui/discord.png)}.dc:hover{background-image:url(../assets/textures/ui/discord_hovered.png)}.dc:active{background-image:url(../assets/textures/ui/discord_pressed.png)}
+#homeButtons{position:absolute;left:64px;top:80px;bottom:80px;width:336px;display:flex;flex-direction:column;justify-content:center}
+.mbtn{display:block;text-align:left;text-decoration:none;color:#fff;cursor:pointer;font-family:"Roboto",sans-serif;font-weight:700;border:0;border-left:2px solid transparent;
+  background:rgba(0,0,0,.47);border-radius:2px 8px 8px 2px;padding:8px 8px 8px 16px;margin-bottom:4px}
+.mbtn:hover,.mbtn:focus-visible{background:rgba(26,26,26,.31);border-left-color:#c90045;outline:0}
+.mbtn:active{background:rgba(51,51,51,.08);border-left-color:#fff}
+.mbtn:disabled{opacity:.4;cursor:default;pointer-events:none}
+.mbtn.big{font-size:36px}.mbtn.small{font-size:22px;margin-right:100px}
+
+/* gameplay HUD: CSS 3D scene with the camera's FoV; k = px per world unit at the grid plane */
+#hud{z-index:3;pointer-events:none}
+#hudPersp{position:absolute;inset:0;perspective:var(--D);perspective-origin:50% 50%}
+#hudRoot{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d}
+.h3{position:absolute;left:0;top:0;transform-origin:50% 50%;backface-visibility:hidden}
+#gameMsg{position:absolute;left:0;right:0;bottom:14%;text-align:center;font-size:20px;opacity:0;font-family:"Nunito",sans-serif;font-weight:600}
+.popup{position:absolute;left:0;top:0;transform-origin:0 0}
+
+
+/* Menu (game.tscn): Holder 440x560 centred; positions are the scene's anchors x 560 */
+#pause{z-index:6;background:rgba(0,0,0,.251);opacity:0;transition:opacity .25s cubic-bezier(.45,0,.55,1)}
+#pause.show{opacity:1}
+#pHide{position:absolute;inset:0}
+#pHolder{position:absolute;left:50%;top:50%;width:440px;height:560px;margin:-280px 0 0 -220px;box-sizing:border-box;background:rgba(0,0,0,.878);border:2px solid rgba(0,0,0,.6);border-radius:12px}
+#pHeader{position:absolute;left:-1px;top:-1px;width:439px;height:120px;display:flex;align-items:center;justify-content:center;font:700 48px Roboto,sans-serif}
+#pSep{position:absolute;left:14px;right:14px;top:118px;height:1px;background:rgba(255,255,255,.078)}
+.pbtn{position:absolute;left:-2px;width:440px;height:84px;margin-top:-2px;border:0;background:none;color:#fff;font:500 28px Ubuntu,sans-serif;cursor:pointer}
+.pbtn:hover,.pbtn:focus-visible{background:rgba(9,8,13,.5);outline:0}.pbtn:active{background:rgba(19,17,26,.5)}
+.pbtn:disabled{opacity:.4;cursor:default;pointer-events:none}
+#pNote{position:absolute;left:-2px;width:440px;top:505px;text-align:center;font:16px sans-serif;color:#fff;white-space:nowrap}
+
+/* results.tscn */
+/* results.tscn: positions are anchor*size + offset */
+#results{z-index:4;background:#0d0d0d}
+#resCoverBg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.14902}
+#resCover{position:absolute;left:50%;top:50%;width:min(100vw,100vh);height:min(100vw,100vh);transform:translate(-50%,-50%);background-size:100% 100%;-webkit-mask-image:linear-gradient(90deg,transparent,#000 50%,transparent);mask-image:linear-gradient(90deg,transparent,#000 50%,transparent)}  /* alpha_gradient.gdshader over the keep-aspect cover quad */
+#resHolder{position:absolute;inset:0}
+.rl{position:absolute;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:Ubuntu,sans-serif}
+.rl>*{overflow:hidden;text-overflow:ellipsis}
+#rTitle{left:32px;right:32px;top:96px;height:64px;font-weight:500;font-size:64px;-webkit-text-stroke:12px rgba(0,0,0,.376);paint-order:stroke fill}
+#rDiff{left:32px;right:7px;top:168px;height:42px;font-weight:400;font-size:36px;color:#a0a0a0;-webkit-text-stroke:8px rgba(0,0,0,.376);paint-order:stroke fill}
+#rMappers{left:32px;right:7px;top:212px;height:28px;font-weight:400;font-size:24px;color:#a0a0a0;-webkit-text-stroke:8px rgba(0,0,0,.376);paint-order:stroke fill}
+#rSpeed{left:32px;right:calc(80% + 32px);top:248px;height:48px;font-weight:500;font-size:42px}
+#rSep{position:absolute;left:32px;right:32px;top:300px;height:2px;background:#fff}
+#rAcc{left:32px;right:calc(70% - 21px);top:308px;height:72px;font-weight:500;font-size:64px}
+#rHits{left:calc(30% + 333.6px);right:32px;top:308px;height:72px;font-weight:500;font-size:64px;color:#a0a0a0;justify-content:flex-end}
+#rScore{left:32px;right:calc(70% - 21px);top:388px;height:48px;font-weight:500;font-size:42px}
+#rStatus{left:calc(30% + 333.6px);right:32px;top:388px;height:48px;font-weight:500;font-size:42px;justify-content:flex-end}
+#rGraphBlur{position:absolute;left:32px;width:calc(60% - 32px);bottom:96px;height:160px;backdrop-filter:blur(6px) brightness(1.25);-webkit-backdrop-filter:blur(6px) brightness(1.25)}
+#rGraph{position:absolute;left:32px;width:calc(60% - 32px);bottom:96px;height:160px}
+#rGraphC{position:absolute;inset:0;width:100%;height:100%}
+#rOffTop,#rOffBot{position:absolute;left:-32px;width:32px;text-align:right;font:400 11px Ubuntu,sans-serif;color:#a0a0a0}
+#rOffTop{top:0}#rOffBot{bottom:0}
+#rDrop{position:absolute;left:0;right:0;top:72.8px;height:1px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.12549) 0,rgba(255,255,255,.12549) calc(100%/64),transparent calc(100%/64),transparent calc(200%/64))}
+#resTop{position:absolute;left:0;right:0;top:0;height:72px;backdrop-filter:blur(6px) brightness(.5);-webkit-backdrop-filter:blur(6px) brightness(.5)}
+#resTop img{position:absolute;left:6px;top:8px;height:56px}
+#resTop .ver{position:absolute;left:64px;top:50%;transform:translateY(-50%);font-weight:500;font-size:18px;line-height:32px}
+#resTitleR{position:absolute;right:10px;top:50%;width:131px;height:38px;margin-top:-19px;display:flex;align-items:center;justify-content:flex-end;font:500 32px Roboto,sans-serif}
+#resFoot{position:absolute;left:0;right:0;bottom:0;height:72px;backdrop-filter:blur(6px) brightness(.5);-webkit-backdrop-filter:blur(6px) brightness(.5);overflow:hidden}
+.rbtn{position:absolute;top:8px;bottom:8px;border:0;border-bottom:2px solid transparent;border-radius:4px;background:none;color:#fff;font:500 22px Roboto,sans-serif;cursor:pointer;padding:6px 8px}
+.rbtn:hover{background:#181818;border-bottom-color:#fff}
+#rBack{left:8px;width:calc(7.5% - 8px)}#rPlay{left:92.5%;right:8px}
+
+#fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50;transition:opacity .25s ease}
+#fatal{position:absolute;inset:0;z-index:99;background:#0b0b0b;padding:48px;font-size:16px;line-height:1.6;white-space:pre-wrap;color:#ffd8e6}
