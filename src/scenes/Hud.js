@@ -52,7 +52,7 @@ export class Hud {
     const mk = () => { const c = document.createElement('canvas'); c.width = 250; c.height = 625; return { _c: c }; };
     this.leftEl = mk(); this.rightEl = mk();
     this.ring = new ComboRing();
-    this.txt = { score: '0', mult: '1x', acc: '100.00%', hits: '0', miss: '0', sum: '0' };
+    this.txt = { score: '0', mult: '1x', acc: '100.00%', hits: '0', miss: '0', sum: '0', combo: '0' };
     this.dirty = true;
     // Label3Ds
     this.titleEl = this.world('700 64px Nunito', '#fff'); this.progLbl = this.world('600 64px Nunito', 'rgba(255,255,255,0.745)');
@@ -83,10 +83,18 @@ export class Hud {
   }
   drawPanels() {
     const t = this.txt, F = (w, px) => `${w} ${px}px Nunito`;
-    let g = this.leftEl._c.getContext('2d', SW); g.clearRect(0, 0, 250, 625); g.drawImage(this.imgs.panel_left_background, 0, 0, 250, 625);
-    g.drawImage(this.ring.canvas, 0, 0);   // MultiplierProgress Panel output, already at its place in the viewport
-    drawLine(g, t.score, F(700, 50), '#fff', 125, 625 * 0.35, 'center'); drawLine(g, t.mult, F(600, 50), '#fff', 125, 625 * 0.65, 'center');
-    g = this.rightEl._c.getContext('2d', SW); g.clearRect(0, 0, 250, 625); g.drawImage(this.imgs.panel_right_background, 0, 0, 250, 625);
+    // PanelLeft/PanelRight.Init: isVisible = !SimpleHUD && !SuperSimpleHUD hides every widget of the viewport (background included)
+    const full = !this.simple && !this.sup;
+    let g = this.leftEl._c.getContext('2d', SW); g.clearRect(0, 0, 250, 625);
+    if (full) {
+      g.drawImage(this.imgs.panel_left_background, 0, 0, 250, 625);
+      g.drawImage(this.ring.canvas, 0, 0);   // MultiplierProgress Panel output, already at its place in the viewport
+      drawLine(g, t.score, F(700, 50), '#fff', 125, 625 * 0.35, 'center'); drawLine(g, t.mult, F(600, 50), '#fff', 125, 625 * 0.65, 'center');
+      if (this.alt) drawLine(g, t.combo, F(600, 50), '#fff', 125, 625 * 0.86, 'center');   // ComboCount (AltComboCounter): anchor 0.86, 180x36 grown to the font's line height about its centre
+    }
+    g = this.rightEl._c.getContext('2d', SW); g.clearRect(0, 0, 250, 625);
+    if (!full) { drawLine(g, t.miss, F(600, 50), 'rgba(255,255,255,0.768627)', 125, 625 * 0.5, 'center'); this.dirty = false; this.ver.left++; this.ver.right++; return; }   // SimpleMisses (LabelSettings_g4ffu), the only visible widget
+    g.drawImage(this.imgs.panel_right_background, 0, 0, 250, 625);
     drawLine(g, t.acc, F(700, 50), '#fff', 125, 625 * 0.35, 'center');
     const y0 = 625 * 0.625;
     drawLine(g, t.hits, F(600, 30), `rgba(255,255,255,${this.hitOp})`, 125 - 25, y0 - 2, 'right');    // offset_bottom -4 with grow both: centre at y0 - 2
@@ -101,6 +109,7 @@ export class Hud {
 
   init(attempt, runner) {
     this.attempt = attempt; this.runner = runner;
+    const S = attempt.Settings; this.simple = S.SimpleHUD; this.sup = S.SuperSimpleHUD; this.alt = S.AltComboCounter;   // read once in each component's Init
     this.titleEl.setText(attempt.Map.PrettyTitle);
     this.speedEl.setText(`${attempt.Speed.toFixed(2)}x`); this.speedEl.alpha = attempt.Speed === 1 ? 0 : 100 / 255;   // Speed.cs: alpha 0 at 1x, else 100/255
     this.skipEl.setText('Press Space to skip');
@@ -122,10 +131,11 @@ export class Hud {
     const it = [];
     const quad = (src, ver, t, w, h, alpha = 1) => it.push({ src, ver, o: t.o, b: t.b, w, h, alpha, cull: true, priority: 0, mips: false });
     const lab = (e, t, px, priority = 0) => { if (e.canvas.width) it.push({ src: e.canvas, ver: e.ver, o: t.o, b: t.b, w: e.canvas.width * px, h: e.canvas.height * px, alpha: e.alpha, cull: false, priority, mips: false }); };
-    quad(this.healthEl, this.ver.health, T.health, 10.88, 0.8); quad(this.progEl, this.ver.prog, T.progress, 10.88, 0.8);
+    if (!this.sup) quad(this.healthEl, this.ver.health, T.health, 10.88, 0.8);   // HealthBar.Init: Main + Background invisible with SuperSimpleHUD
+    quad(this.progEl, this.ver.prog, T.progress, 10.88, 0.8);
     quad(this.leftEl._c, this.ver.left, T.left, 4, 10); quad(this.rightEl._c, this.ver.right, T.right, 4, 10);
-    lab(this.titleEl, T.title, 0.005); lab(this.progLbl, T.progLbl, 0.0025);
-    lab(this.comboEl, T.combo, 0.0025, -1);   // only its outline is visible (modulate alpha 0): outline_render_priority -1
+    if (!this.sup) { lab(this.titleEl, T.title, 0.005); lab(this.progLbl, T.progLbl, 0.0025); }   // Title.Init / Progress.Init: Visible = !SuperSimpleHUD
+    if (!this.sup && !this.alt) lab(this.comboEl, T.combo, 0.0025, -1);   // Combo.Init: Visible = !SuperSimpleHUD, then = !AltComboCounter   // only its outline is visible (modulate alpha 0): outline_render_priority -1
     lab(this.speedEl, T.speed, 0.0025); lab(this.skipEl, T.skip, 0.0025);
     const I = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
     for (const p of this.popups) {
@@ -144,7 +154,7 @@ export class Hud {
     this.tgt.ringP = a.ComboMultiplierProgress / a.ComboMultiplierIncrement;
     this.tgt.ringC = a.ComboMultiplier === 8 ? [1, 140 / 255, 0] : [1, 1, 1];
     this.txt.acc = `${a.Hits + a.Misses === 0 ? '100.00' : a.Accuracy.toFixed(2)}%`;   // PanelRight
-    this.txt.hits = String(a.Hits); this.txt.miss = String(a.Misses); this.txt.sum = padMagnitude(a.Sum);
+    this.txt.hits = String(a.Hits); this.txt.miss = String(a.Misses); this.txt.sum = padMagnitude(a.Sum); this.txt.combo = String(a.Combo);   // PanelLeft altCombo.Text
     this.comboEl.setText(a.Combo);                              // Combo.cs
     this.tgt.health = 32 + a.Health * 10.24;                            // HealthBar.cs
     if (!a.IsReplay && a.Health <= 0 && !this.healthDim) { this.healthDim = true; this.healthW = -1; }   // HealthBar.cs: Main + Background modulate 0xffffff80

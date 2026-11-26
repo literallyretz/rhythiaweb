@@ -24,3 +24,12 @@ export function hexColor(hex) { // "ff0059" -> [r,g,b] 0..1
   const h = hex.trim().replace('#', '');
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 }
+
+// Util.Misc.ParseColor(hex, fallback) -> Color.FromHtml: "#" optional; rgb / rgba / rrggbb / rrggbbaa; anything else falls back (white here) -> [r, g, b] 0..1
+export function parseColor(hex, fallback = [1, 1, 1]) {
+  if (hex == null || hex.trim() === '') return fallback;
+  let h = hex.trim().replace(/^#/, '');
+  if (!/^([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(h)) return fallback;
+  if (h.length <= 4) h = [...h].map((c) => c + c).join('');
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+}

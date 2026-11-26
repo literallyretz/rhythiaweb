@@ -7,7 +7,7 @@ import { createPerf } from './util/perf.js';
 import { JukeboxPanel } from './ui/JukeboxPanel.js';
 import { MenuCursor } from './ui/MenuCursor.js';
 import { VERSION } from './constants.js';
-import { hexColor } from './util/misc.js';
+import { parseColor } from './util/misc.js';
 import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
 import { SoundManager } from './audio/SoundManager.js';
@@ -33,7 +33,16 @@ async function boot() {
   const MAP_URL = new URLSearchParams(location.search).get('map') || 'assets/maps/girls_legend_u.sspm';
 
   step('fonts', () => Promise.all(['400 16px Ubuntu', '500 16px Ubuntu', '700 16px Roboto', '500 16px Roboto', '700 16px Nunito', '600 16px Nunito'].map((f) => document.fonts.load(f))));
-  step('colorset', async () => { const t = await (await fetch('assets/skin/colorset_default.txt')).text(); app.noteColors = t.trim().split(/[\r\n,]+/).map(hexColor); });
+  // SkinManager.Load: note mesh + colorset. "skin" = the skin's config (default skin: squircle / default); a missing mesh falls back to squircle, a missing colorset keeps the skin's colours
+  app.loadSkinContent = async () => {
+    const s = app.settings, text = async (u) => { try { const r = await fetch(u); return r.ok ? r.text() : null; } catch { return null; } };
+    const mesh = s.NoteMesh === 'skin' ? 'squircle' : s.NoteMesh, colors = s.NoteColors === 'skin' ? 'default' : s.NoteColors;
+    const [obj, set] = await Promise.all([text(`assets/meshes/${encodeURIComponent(mesh)}.obj`), text(`assets/colorsets/${encodeURIComponent(colors)}.txt`)]);
+    if (set !== null) app.noteColors = set.trim().replace(/\r\n|[\r\n\u2028\u2029\u0085]/g, ',').split(',').map((c) => parseColor(c));   // StripEdges().ReplaceLineEndings(",").Split(",")
+    app.noteMeshText = obj ?? await text('assets/meshes/squircle.obj');
+    app.renderer?.setNoteMesh(app.noteMeshText);
+  };
+  step('colorset', () => app.loadSkinContent());
   step('audio', async () => {
     app.sound = new SoundManager(app.settings);
     const get = async (u) => app.sound.decode(await (await fetch(u)).arrayBuffer());
@@ -41,7 +50,7 @@ async function boot() {
     app.sound.sceneName = () => (app.menuRunning ? 'SceneMenu' : app.results.shown ? 'SceneResults' : '');   // SceneManager.Scene.Name
     Object.defineProperty(app.sound, 'lobbySpeed', { get: () => app.speed });                                  // Lobby.Speed
   });
-  step('game renderer', async () => { app.renderer = new GameRenderer(app.canvas); await app.renderer.load('assets/'); });
+  step('game renderer', async () => { app.renderer = new GameRenderer(app.canvas); await app.renderer.load('assets/'); if (app.noteMeshText) app.renderer.setNoteMesh(app.noteMeshText); });
   step('perf overlay', () => { app.perf = createPerf(app.renderer.gl, app.canvas); });
   step('HUD textures', () => Promise.all(['cursor', 'health', 'health_background', 'hits', 'misses', 'miss_feedback', 'panel_left_background', 'panel_right_background', 'progress', 'progress_background']
     .map((n) => { const i = new Image(); i.src = `assets/skin/game/${n}.png`; return i.decode(); })));
@@ -76,7 +85,7 @@ async function boot() {
   $('btnSettings').disabled = false; $('btnSettings').onclick = () => app.settingsMenu.showMenu();
   $('pSettings').disabled = false; $('pSettings').onclick = () => app.settingsMenu.showMenu();
   document.addEventListener('mousemove', (e) => { if (app.menuBg) app.menuBg.mouseX = e.clientX - window.innerWidth / 2; });
-  hooks.refreshMenuMusic = () => app.sound.refreshMenuMusicPlayback();
+  hooks.refreshMenuMusic = () => app.sound.refreshMenuMusicPlayback(); hooks.reloadSkin = () => app.loadSkinContent();
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
   const tick = (now) => { app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
   requestAnimationFrame(tick);

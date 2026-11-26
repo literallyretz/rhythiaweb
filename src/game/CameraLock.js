@@ -24,10 +24,14 @@ export class CameraLock {
   }
 }
 
-// CursorManager.UpdateCursor (relative input path; absolute input / replays not in scope)
+// CursorManager.UpdateCursor (replays not in scope)
 export function updateCursor(attempt, camera, cursor, inputDelta) {
   const s = attempt.Settings;
   let sensitivity = f(s.Sensitivity);                     // (float)(double)settings.Sensitivity
+  if (s.AbsoluteInput && !attempt.IsReplay) sensitivity = f(s.AbsoluteSensitivity);
   sensitivity = f(sensitivity * f(f(s.FoV) / 70));        // sensitivity *= (float)(double)settings.FoV / 70f
+  if (s.AbsoluteInput || attempt.IsReplay) {              // repositionAbsolute: the cursor is recomputed from the absolute position every time
+    camera.rotation = [0, 0, 0]; attempt.RawCursorPosition = { x: 0, y: 0 }; attempt.CursorPosition = { x: 0, y: 0 };
+  }
   attempt.CameraMode.Process(attempt, camera, cursor, inputDelta, sensitivity);
 }

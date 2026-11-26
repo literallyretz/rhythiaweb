@@ -2,9 +2,10 @@
 // settings.defs.js, generated from the C#. Each setting is a SettingsItem; profile.<Id> reads/writes its Value, like the implicit
 // conversion operator on SettingsItem<T>, so game code keeps using plain `settings.FoV`.
 import { DEFS, SECTIONS } from './settings.defs.js';
+import { COLORSETS, MESHES } from './userContent.js';
 
 // Hooks the C# UpdateActions call into (SoundManager.UpdateVolume, SoundManager.RefreshMenuMusicPlayback); main.js fills them in.
-export const hooks = { updateVolume() {}, refreshMenuMusic() {} };
+export const hooks = { updateVolume() {}, refreshMenuMusic() {}, reloadSkin() {} };   // reloadSkin: SkinManager.Load
 
 export class SettingsItem {
   constructor(def) {
@@ -43,6 +44,10 @@ export class SettingsProfile {
     for (const id of ['VolumeMaster', 'VolumeMusic', 'VolumeSFX', 'VolumeHitSound', 'VolumeMissSound', 'VolumeMenuMusic'])
       I[id].UpdateAction = (_, init) => { if (!init) hooks.updateVolume(); };
     I.EnableMenuMusic.UpdateAction = (_, init) => { if (!init) hooks.refreshMenuMusic(); };
+    // OptionButton lists: NoteColors = ["skin", "default"] (+ colorsets found in the user folder), NoteMesh = getAvailableMeshes(); both reload the skin when changed
+    I.NoteColors.List = { Values: ['skin', 'default', ...COLORSETS.filter((n) => n !== 'default')] };
+    I.NoteMesh.List = { Values: ['skin', ...MESHES] };
+    I.NoteColors.UpdateAction = I.NoteMesh.UpdateAction = (_, init) => { if (!init) hooks.reloadSkin(); };
     I.ResetToDefaults.Buttons = [{ Title: 'Reset', Description: 'WARNING: THIS RESETS YOUR CURRENT PROFILE', OnPressed: () => hooks.resetToDefaults() }];
     updateApproachTime();
   }

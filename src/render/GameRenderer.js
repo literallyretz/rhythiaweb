@@ -25,8 +25,8 @@ uniform mat4 uVP; uniform vec3 uCenter; uniform vec2 uSize; uniform float uRot; 
 void main(){ vUV = aPos + 0.5; vUV.y = 1.0 - vUV.y; vec2 p = aPos * uSize; float c = cos(uRot), s = sin(uRot); p = vec2(p.x * c - p.y * s, p.x * s + p.y * c); gl_Position = uVP * vec4(uCenter + vec3(p, 0.0), 1.0); }`;
 const QUAD_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR}
-in vec2 vUV; uniform sampler2D uTex; uniform float uAlpha; out vec4 o;
-void main(){ vec4 t = texture(uTex, vUV); o = vec4(t.rgb, t.a * uAlpha); }`;
+in vec2 vUV; uniform sampler2D uTex; uniform float uAlpha; uniform vec4 uFogMix; out vec4 o;   // uFogMix: depth-fog colour (sRGB) + amount, for materials without disable_fog
+void main(){ vec4 t = texture(uTex, vUV); o = vec4(mix(t.rgb, srgb2lin(uFogMix.rgb), uFogMix.a), t.a * uAlpha); }`;
 const NOTE_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 iPos; layout(location=2) in vec4 iColor;
 uniform mat4 uVP; uniform float uScale; out vec4 vColor;
@@ -76,10 +76,10 @@ export class GameRenderer {
 
   async load(base = 'assets/') {
     const gl = this.gl;
-    const [grid, guides, cursor, tile, obj] = await Promise.all([
+    const [grid, guides, cursor, tile, obj, vis] = await Promise.all([
       loadImage(base + 'skin/game/grid.png'), loadImage(base + 'skin/game/grid_guides.png'), loadImage(base + 'skin/game/cursor.png'),
-      loadImage(base + 'spaces/grid_tile.png'), fetch(base + 'meshes/squircle.obj').then((r) => r.text())]);
-    this.tex = { grid: makeTexture(gl, grid), guides: makeTexture(gl, guides), cursor: makeTexture(gl, cursor), tile: makeTexture(gl, tile, { repeat: true }) };
+      loadImage(base + 'spaces/grid_tile.png'), fetch(base + 'meshes/squircle.obj').then((r) => r.text()), loadImage(base + 'skin/game/visibility_assist.png')]);
+    this.tex = { grid: makeTexture(gl, grid), guides: makeTexture(gl, guides), cursor: makeTexture(gl, cursor), vis: makeTexture(gl, vis), tile: makeTexture(gl, tile, { repeat: true }) };
     // quad geometry (unit square centred on origin)
     this.quadVAO = gl.createVertexArray(); gl.bindVertexArray(this.quadVAO);
     const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb);
@@ -93,10 +93,16 @@ export class GameRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([...mkPlane(-10), ...mkPlane(10)]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
-    // note mesh (squircle.obj) + instance buffer
+    this.setNoteMesh(obj);   // note mesh (squircle.obj unless the NoteMesh setting says otherwise) + instance buffer
+  }
+
+  // SkinManager.loadMesh -> Runner: MultiMesh.Mesh = Skin.NoteMesh. Only the geometry changes; instances and materials stay.
+  setNoteMesh(obj) {
+    const gl = this.gl;
     const pos = parseOBJ(obj); this.noteVerts = pos.length / 3;
+    if (this.noteVAO) { gl.deleteVertexArray(this.noteVAO); gl.deleteBuffer(this.noteMeshBuf); }
     this.noteVAO = gl.createVertexArray(); gl.bindVertexArray(this.noteVAO);
-    const nb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+    const nb = this.noteMeshBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instBuf);
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 0); gl.vertexAttribDivisor(1, 1);
@@ -171,8 +177,11 @@ export class GameRenderer {
       for (let i = 0; i < inst.length; i += 7) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], inst[i + k]); mx[k] = Math.max(mx[k], inst[i + k]); }
       list.push({ p: 0, d: dist((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2), draw: () => this.drawNotes(vp, inst, settings, false) });
     }
-    const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
+    const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0, fog = null) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.uniform4f(qu.uFogMix, ...(fog ?? [0, 0, 0, 0])); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
+    // Grid/VisibilityAssist (game.tscn): 300x300 quad at z=-140, unshaded alpha, GeometryInstance Transparency 0.25, fog NOT disabled: grid.tscn's depth fog
+    // (begin 10, end 60, curve 0.15, density 1, colour fog_light_color) is saturated at >= 143 units, so the quad is the fog colour with the texture's alpha * 0.75
+    if (this.visAssist && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -140), draw: () => quad(this.tex.vis, 0, 0, -140, 300, 300, 0.75, 0, [0.0470588, 0.0313726, 0.109804, 1]) });
     if (settings.GridGuides && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -0.2), draw: () => quad(this.tex.guides, 0, 0, -0.2, 4.04, 4.04, 1) });   // GridGuides: scale 1.01, z=-0.2
     if (!OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, 0), draw: () => quad(this.tex.grid, 0, 0, 0, 4, 4, 1) });                                    // Grid quad 4x4
     const cs = CURSOR_SIZE * settings.CursorScale, [kx, ky] = this.cursor.position;                                          // Grid.Init: CURSOR_SIZE * CursorScale

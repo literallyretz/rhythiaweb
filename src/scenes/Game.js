@@ -49,6 +49,7 @@ export class GameScene {
     runner.Play(attempt, settings);
     this.app.sound.beginGameplayScope(attempt.Map);         // Runner.Play -> SoundManager.BeginGameplayScope
     this.app.renderer.cursor.rotation = 0;                  // CursorManager.Init: cursorMesh.Transform = Identity
+    this.app.renderer.visAssist = settings.VisibilityAssist;   // Grid.Init: VisibilityAssist.Visible = setting (once per attempt)
     this.trail.reset(); this.app.renderer.trail = this.trail;   // fresh TrailRenderer per Game scene
     this.active = true; this.paused = false; this.acc = 0; this.last = performance.now();
     this.showPause(false, true);   // Game.cs: Menu.HideMenu(true)
@@ -58,8 +59,11 @@ export class GameScene {
     if (!this.raf) this.raf = requestAnimationFrame((t) => this.frame(t));
   }
 
-  lockPointer() {
+  lockPointer(resumed = false) {
     const c = this.app.canvas;
+    // Game.cs: MouseMode = AbsoluteInput ? Visible : Captured; PauseMenu (resume): AbsoluteInput ? ConfinedHidden : Captured. A browser cannot confine the pointer, so
+    // ConfinedHidden is a hidden native cursor and Visible a shown one; absolute input never takes the pointer lock.
+    if (this.app.settings.AbsoluteInput) { document.body.classList.toggle('noNative', resumed); return; }
     try { const p = c.requestPointerLock?.({ unadjustedMovement: true }); if (p?.catch) p.catch(() => c.requestPointerLock?.().catch?.(() => {})); } catch { /* no pointer lock available */ }
   }
 
@@ -100,7 +104,12 @@ export class GameScene {
       // (blink mouse_event.cc has a TODO for scaling it); with unadjustedMovement that is the raw count. Firefox reports CSS px, so x devicePixelRatio there.
       const k = FIREFOX ? (window.devicePixelRatio || 1) : 1;
       const rel = { x: Math.fround(ev.movementX * k), y: Math.fround(ev.movementY * k) };
-      updateCursor(this.attempt, this.app.renderer.cam, this.app.renderer.cursor, rel);
+      if (this.attempt.Settings.AbsoluteInput) {
+        // Game.cs OnMouseMove: (absolute - Window.Size / 2) * 0.582f, Window.Size in pixels (Vector2i / int = integer division); the window is not locked, so the position is real
+        const dpr = window.devicePixelRatio || 1, cx = Math.trunc(Math.round(innerWidth * dpr) / 2), cy = Math.trunc(Math.round(innerHeight * dpr) / 2);
+        const abs = { x: Math.fround(Math.fround(ev.clientX * dpr - cx) * Math.fround(0.582)), y: Math.fround(Math.fround(ev.clientY * dpr - cy) * Math.fround(0.582)) };
+        updateCursor(this.attempt, this.app.renderer.cam, this.app.renderer.cursor, abs);
+      } else updateCursor(this.attempt, this.app.renderer.cam, this.app.renderer.cursor, rel);
       const len = Math.fround(Math.sqrt(Math.fround(Math.fround(rel.x * rel.x) + Math.fround(rel.y * rel.y))));   // Vector2.Length()
       this.attempt.DistanceMM += len / this.app.settings.Sensitivity / 57.5;
     }
@@ -127,7 +136,7 @@ export class GameScene {
     this.app.sound.song.pitchScale = a.Speed; this.app.sound.song.setPaused(!r.Playing);
     this.showPause(show);
     this.app.menuCursor?.UpdateVisible(show && this.app.settings.UseCursorInMenus);   // PauseMenu.ShowMenu
-    if (show) { if (document.pointerLockElement) document.exitPointerLock(); } else { this.last = performance.now(); this.lockPointer(); }
+    if (show) { if (document.pointerLockElement) document.exitPointerLock(); document.body.classList.remove('noNative'); } else { this.last = performance.now(); this.lockPointer(true); }
   }
   showPause(v, instant = false) { // PauseMenu.ShowMenu: Visible = true on show; modulate tween 0.25 s (Quad); callback: Visible = Shown (read when the tween ends)
     const el = document.getElementById('pause'); this.pauseShown = v;

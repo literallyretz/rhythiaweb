@@ -93,6 +93,7 @@ export class SettingsMenu {
     const title = el('div', 'stitle', row); title.textContent = setting.Title; title.title = setting.Description;
     if (setting.Type === 'bool') this.setupToggle(setting, row);
     else if (setting.Slider) this.setupSlider(setting, row);
+    else if (setting.List) this.setupList(setting, row);
     if (setting.Type === 'Variant' && setting.Buttons.length) {
       const box = el('div', 'sbtns', row);
       for (const b of setting.Buttons) {
@@ -101,6 +102,14 @@ export class SettingsMenu {
       }
     }
     return row;
+  }
+
+  // setupList: OptionButton filled with List.Values; ItemSelected -> SetVariant when changed; Updated -> select the current value's index (no match = nothing selected)
+  setupList(setting, row) {
+    const dd = new Dropdown(row, '', (n) => { if (setting.GetVariant() !== n) setting.SetVariant(n); }, true);
+    dd.box.removeAttribute('id'); dd.box.classList.add('lst');
+    const refresh = () => dd.set(setting.List.Values, setting.List.Values.includes(setting.GetVariant()) ? setting.GetVariant() : '');
+    setting.Updated.add(refresh); refresh();
   }
 
   setupToggle(setting, row) {
@@ -147,10 +156,16 @@ export class SettingsMenu {
 
 // OptionButton + PopupMenu (theme.tres PopupMenu styles)
 class Dropdown {
-  constructor(parent, id, onSelect) {
+  constructor(parent, id, onSelect, fixed = false) {   // fixed: the popup is placed under the button in window coordinates (a PopupMenu is its own window, not clipped by the scroll area)
     this.onSelect = onSelect; this.box = el('div', 'opt', parent); this.box.id = id;
-    this.btn = el('button', 'optbtn', this.box); this.menu = el('div', 'popup', this.box); this.menu.hidden = true;
-    this.btn.onclick = () => { this.menu.hidden = !this.menu.hidden; };
+    this.btn = el('button', 'optbtn', this.box); this.menu = el('div', fixed ? 'popup fix' : 'popup', this.box); this.menu.hidden = true;
+    this.btn.onclick = () => {
+      this.menu.hidden = !this.menu.hidden;
+      if (fixed && !this.menu.hidden) {
+        const r = this.btn.getBoundingClientRect(); this.menu.style.left = `${r.left}px`; this.menu.style.minWidth = `${r.width}px`;
+        this.menu.style.top = `${Math.max(0, Math.min(r.bottom, innerHeight - this.menu.offsetHeight))}px`;   // popup positions are clamped to the screen
+      }
+    };
     document.addEventListener('pointerdown', (e) => { if (!this.box.contains(e.target)) this.menu.hidden = true; });
   }
   set(items, current) {

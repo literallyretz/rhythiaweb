@@ -23,6 +23,8 @@
 .optbtn:hover{background-color:rgba(57,57,57,.6);color:rgb(242,242,242)}.optbtn:active{background-color:rgba(0,0,0,.6);color:#fff}
 .popup{position:absolute;left:0;top:100%;min-width:100%;background:#000;border:1px solid #c90045;border-radius:4px;padding:3px;z-index:5}
 .popup[hidden]{display:none}
+.popup.fix{position:fixed;z-index:80}
+.srow>.opt.lst{position:absolute;left:calc(80% + 8px);right:0;top:4px;bottom:4px}   /* OptionButton: anchor_left 0.8, offset_left 8, offset_top 4, offset_bottom -4 */
 .pitem{height:23px;line-height:23px;padding:0 2px;font:500 16px/23px Roboto,sans-serif;color:rgb(223,223,223);cursor:pointer;border-radius:4px;white-space:nowrap}
 .pitem:hover{background:rgb(20,20,20);color:#fff}
 /* sidebar (Theme_jhjkh) */
