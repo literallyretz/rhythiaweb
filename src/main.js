@@ -32,6 +32,13 @@ window.__rhythia = app; // handy for debugging / the automated tests
 // SceneManager.Load: Transition self_modulate tween, 0.25 s, TransitionType.Quad (ease in-out)
 const fade = (to) => tweenOpacity($('fade'), to ? 1 : 0, 0.25);
 
+// Port-only notice (not in the original): phones are unsupported; this warns but never blocks.
+const phone = navigator.userAgentData?.mobile ?? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+if (phone || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent))) {   // last test: iPadOS reports a Mac UA
+  $('phoneWarn').classList.remove('hidden');
+  $('pwOk').onclick = () => $('phoneWarn').classList.add('hidden');
+}
+
 async function boot() {
   const loading = new LoadingScene(); app.loading = loading;
   const steps = [];

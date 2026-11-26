@@ -115,3 +115,10 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 /* Menus (scenes/main_menu.tscn: Menus/Home, Menus/Play). Panels share the full screen and cross-fade (MainMenu.Transition); TopBar is drawn above them. */
 .mpanel{position:absolute;inset:0}
 #topbar{z-index:5}
+
+#phoneWarn{position:absolute;inset:0;z-index:50;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:16px;font-family:Ubuntu,sans-serif;color:#fff}
+#pwBox{max-width:420px;border:1px solid #c90045;padding:20px;text-align:center}
+#pwBox h2{margin:0 0 12px;font-size:20px;color:#ff3d78}
+#pwBox p{margin:0 0 12px;font-size:15px;line-height:1.4;color:rgba(255,255,255,.86)}
+#pwOk{border:0;border-bottom:2px solid #c90045;border-radius:4px;background:#181818;color:#fff;font:500 18px Roboto,sans-serif;padding:8px 16px;cursor:pointer}
+#pwOk:hover{border-bottom-color:#fff}
