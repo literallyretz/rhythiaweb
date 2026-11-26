@@ -66,7 +66,7 @@ async function boot() {
   await minEnter;
 
   app.game = new GameScene(app); app.results = new ResultsScene(app);
-  $('ver').textContent = VERSION; $('btnNotes').href = $('btnNotes').href.replace('VERSION', VERSION);
+  $('ver').textContent = `v${VERSION}`; $('btnNotes').href = $('btnNotes').href.replace('VERSION', VERSION);
   $('btnPlay').onclick = () => app.play();
   // Settings: scenes/main.tscn Settings node (SettingsMenu) + the SETTINGS buttons (SettingsMenuButton.cs, PauseMenu.cs)
   hooks.updateVolume = () => app.sound.updateVolume(); SettingsManager.onLoaded(() => app.sound.updateVolume());

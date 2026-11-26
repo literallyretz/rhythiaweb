@@ -26,6 +26,10 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 #topbar{position:absolute;left:0;right:0;top:0;height:72px;backdrop-filter:blur(6px) brightness(.5);-webkit-backdrop-filter:blur(6px) brightness(.5)}
 #topbar .logo{position:absolute;left:6px;top:8px;height:56px}
 .ver{position:absolute;left:64px;top:50%;transform:translateY(-50%);font-weight:500;font-size:18px;line-height:32px;white-space:nowrap}.ver small{font-size:12px;color:rgba(255,255,255,.627)}
+/* Web port mark: "Web" under the end of the title, version beside it (not in the original) */
+.ver{transform:translateY(calc(-50% - 4px))!important}.ver .rh{position:relative}
+.ver .web{position:absolute;right:-9px;top:19px;font-weight:700;font-size:12px;line-height:12px;color:#c90045}
+#topbar .ver small{position:absolute;left:calc(100% + 15px);top:15.5px;line-height:12px;white-space:nowrap}
 #tabs{position:absolute;left:25%;width:50%;top:4px;bottom:4px;display:flex;justify-content:center;align-items:stretch}
 .tab{font:500 18px Roboto,sans-serif;color:#fff;background:none;border:0;border-bottom:2px solid transparent;border-radius:4px;padding:6px 8px;cursor:pointer}
 .tab:hover:not(:disabled){background:#181818;border-bottom-color:#fff}
