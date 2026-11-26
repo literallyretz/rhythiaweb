@@ -4,6 +4,12 @@
 
 Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client (AGPL-3.0, see LICENSE.original). Godot is not used at runtime. Where the source can be translated it is; anything else is listed under "Known deviations".
 
+## Credits
+- **Rhythia** and its source are by the Rhythia developers (https://github.com/Rhythia/Client, AGPL-3.0). This port is unofficial and unaffiliated.
+- **Bundled map:** *GIRLS' LEGEND U (Game Ver.)*, mapped by Sequiora, from https://www.rhythia.com/maps/11913. The song belongs to its rights holders.
+- **The port:** directed and tested by literallyretz. The code was translated from the original C# / Godot source with Claude Sonnet 5.5 (Anthropic): each system was read from the original and ported, then run and checked in a browser.
+- **Takedown / rights:** if you own something in this repo or on the site and want it removed, open an issue at https://github.com/literallyretz/rhythiaweb/issues.
+
 ## Run / embed
 - `python3 serve.py 8000` then open http://localhost:8000/ (ES modules need HTTP, not file://). Any static host works.
 - Embed: serve the folder and use `<iframe src="…/index.html" allow="autoplay; fullscreen">`. Pointer lock needs a user click (the PLAY button).
