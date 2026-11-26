@@ -1,0 +1,22 @@
+{
+ "colorsets": [
+  "Café au lait",
+  "Cotton Candy",
+  "Hamster Skittles",
+  "Light Blue and White",
+  "Mocha",
+  "Nebula",
+  "Petunia Fade",
+  "Purple Pastel",
+  "Sunset",
+  "Tan",
+  "Tundra",
+  "default"
+ ],
+ "meshes": [
+  "cube",
+  "plane",
+  "square",
+  "squircle"
+ ]
+}

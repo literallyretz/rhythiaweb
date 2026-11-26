@@ -21,12 +21,12 @@ print('ordered',len(order),'skipped (unparsed):',[n for n in order if n not in i
 ui={'Gameplay':['Sensitivity','CursorDrift','ApproachRate','ApproachDistance','FadeIn','FadeOut','Pushback','CameraParallax','FoV','AbsoluteInput','AbsoluteSensitivity','HUDParallax'],
  'Visual':['NoteOpacity','NoteOpacityExponent','NoteSize','GridGuides','CursorScale','CursorOpacity','CursorRotation','UseCursorInMenus','CursorTrail','TrailTime','TrailDetail','HPLerpValue','HitPopups','MissPopups','NoteColors','NoteMesh','SpaceEffects','SpaceHitEffects','SimpleHUD','SuperSimpleHUD','AltComboCounter','VisibilityAssist'],
  'Audio':['AutoplayJukebox','LocalOffset','AlwaysPlayHitSound','EnableHitSound','EnableMissSound','EnableMenuMusic','VolumeMaster','VolumeMusic','VolumeSFX','VolumeHitSound','VolumeMissSound','VolumeMenuMusic'],
- 'Other':['DisplayFPS','ResetToDefaults']}
+ 'Other':['DisplayFPS','ImportNightlyMeshes','ImportNightlyColorsets','ResetToDefaults']}
 shown=set(x for v in ui.values() for x in v)
 out=[]
 for n in [n for n in order if n in items]:
     it=items[n]
-    if (it['t']=='Variant' and n!='ResetToDefaults') or n=='SetUserFolderPath': continue
+    if (it['t']=='Variant' and n not in ('ResetToDefaults','ImportNightlyMeshes','ImportNightlyColorsets')) or n=='SetUserFolderPath': continue
     r=it['d']
     v = r if r in('true','false') or r.startswith('"') else ('0' if r=='default' else ('f(%s)'%r[:-1] if it['f'] else r))
     if r.startswith('Constants'): v='""'

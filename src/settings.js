@@ -2,10 +2,10 @@
 // settings.defs.js, generated from the C#. Each setting is a SettingsItem; profile.<Id> reads/writes its Value, like the implicit
 // conversion operator on SettingsItem<T>, so game code keeps using plain `settings.FoV`.
 import { DEFS, SECTIONS } from './settings.defs.js';
-import { COLORSETS, MESHES } from './userContent.js';
+import { userContent } from './userContent.js';
 
 // Hooks the C# UpdateActions call into (SoundManager.UpdateVolume, SoundManager.RefreshMenuMusicPlayback); main.js fills them in.
-export const hooks = { updateVolume() {}, refreshMenuMusic() {}, reloadSkin() {} };   // reloadSkin: SkinManager.Load
+export const hooks = { updateVolume() {}, refreshMenuMusic() {}, reloadSkin() {}, importUserFiles() {} };   // reloadSkin: SkinManager.Load
 
 export class SettingsItem {
   constructor(def) {
@@ -45,11 +45,19 @@ export class SettingsProfile {
       I[id].UpdateAction = (_, init) => { if (!init) hooks.updateVolume(); };
     I.EnableMenuMusic.UpdateAction = (_, init) => { if (!init) hooks.refreshMenuMusic(); };
     // OptionButton lists: NoteColors = ["skin", "default"] (+ colorsets found in the user folder), NoteMesh = getAvailableMeshes(); both reload the skin when changed
-    I.NoteColors.List = { Values: ['skin', 'default', ...COLORSETS.filter((n) => n !== 'default')] };
-    I.NoteMesh.List = { Values: ['skin', ...MESHES] };
+    I.NoteColors.List = { Values: ['skin'] }; I.NoteMesh.List = { Values: ['skin'] };   // filled by refreshUserLists once the user folder is read
     I.NoteColors.UpdateAction = I.NoteMesh.UpdateAction = (_, init) => { if (!init) hooks.reloadSkin(); };
+    // ImportNightlyMeshes / ImportNightlyColorsets: the browser has no user folder to drop files into, so these two slots pick files instead
+    I.ImportNightlyMeshes.Buttons = [{ Title: 'Import Meshes', Description: 'Adds .obj meshes to the Note Mesh list', OnPressed: () => hooks.importUserFiles('meshes') }];
+    I.ImportNightlyColorsets.Buttons = [{ Title: 'Import Colorsets', Description: 'Adds .txt colorsets to the Note Colors list', OnPressed: () => hooks.importUserFiles('colorsets') }];
     I.ResetToDefaults.Buttons = [{ Title: 'Reset', Description: 'WARNING: THIS RESETS YOUR CURRENT PROFILE', OnPressed: () => hooks.resetToDefaults() }];
     updateApproachTime();
+  }
+  // addUserContentToSettingsList / getAvailableMeshes: rebuild both lists from the user folder, then let the open rows redraw
+  refreshUserLists() {
+    const I = this.items;
+    I.NoteColors.List.Values = ['skin', ...userContent.names('colorsets')]; I.NoteMesh.List.Values = ['skin', ...userContent.names('meshes')];
+    for (const it of [I.NoteColors, I.NoteMesh]) for (const fn of it._listeners) fn(it._v);
   }
   // ToOrderedSectionList: section -> items in menu order (only ones this port shows)
   ToOrderedSectionList() {

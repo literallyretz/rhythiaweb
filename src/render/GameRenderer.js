@@ -21,12 +21,14 @@ void main(){
 }`;
 const QUAD_VS = `#version 300 es
 layout(location=0) in vec2 aPos;
-uniform mat4 uVP; uniform vec3 uCenter; uniform vec2 uSize; uniform float uRot; out vec2 vUV;
-void main(){ vUV = aPos + 0.5; vUV.y = 1.0 - vUV.y; vec2 p = aPos * uSize; float c = cos(uRot), s = sin(uRot); p = vec2(p.x * c - p.y * s, p.x * s + p.y * c); gl_Position = uVP * vec4(uCenter + vec3(p, 0.0), 1.0); }`;
+uniform mat4 uVP; uniform mat4 uView; uniform vec3 uCenter; uniform vec2 uSize; uniform float uRot; out vec2 vUV; out vec3 vView;
+void main(){ vUV = aPos + 0.5; vUV.y = 1.0 - vUV.y; vec2 p = aPos * uSize; float c = cos(uRot), s = sin(uRot); p = vec2(p.x * c - p.y * s, p.x * s + p.y * c); vec3 w = uCenter + vec3(p, 0.0); vView = (uView * vec4(w, 1.0)).xyz; gl_Position = uVP * vec4(w, 1.0); }`;
 const QUAD_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR}
-in vec2 vUV; uniform sampler2D uTex; uniform float uAlpha; uniform vec4 uFogMix; out vec4 o;   // uFogMix: depth-fog colour (sRGB) + amount, for materials without disable_fog
-void main(){ vec4 t = texture(uTex, vUV); o = vec4(mix(t.rgb, srgb2lin(uFogMix.rgb), uFogMix.a), t.a * uAlpha); }`;
+in vec2 vUV; in vec3 vView; uniform sampler2D uTex; uniform float uAlpha; uniform float uFogOn; uniform vec3 uFog; uniform float uFogBegin, uFogEnd, uFogCurve, uFogDensity; out vec4 o;   // uFogOn: material without disable_fog
+void main(){ vec4 t = texture(uTex, vUV); vec3 c = t.rgb;
+  if (uFogOn > 0.5) { float f = pow(clamp((length(vView) - uFogBegin)/(uFogEnd - uFogBegin), 0.0, 1.0), uFogCurve) * uFogDensity; c = mix(c, srgb2lin(uFog), clamp(f, 0.0, 1.0)); }
+  o = vec4(c, t.a * uAlpha); }`;
 const NOTE_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 iPos; layout(location=2) in vec4 iColor;
 uniform mat4 uVP; uniform float uScale; out vec4 vColor;
@@ -178,10 +180,10 @@ export class GameRenderer {
       list.push({ p: 0, d: dist((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2), draw: () => this.drawNotes(vp, inst, settings, false) });
     }
     const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0, fog = null) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.uniform4f(qu.uFogMix, ...(fog ?? [0, 0, 0, 0])); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.uniformMatrix4fv(qu.uView, false, view); gl.uniform1f(qu.uFogOn, fog ? 1 : 0); if (fog) { gl.uniform3f(qu.uFog, 0.0470588, 0.0313726, 0.109804); gl.uniform1f(qu.uFogBegin, 10); gl.uniform1f(qu.uFogEnd, 60); gl.uniform1f(qu.uFogCurve, 0.15); gl.uniform1f(qu.uFogDensity, 1); } gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
     // Grid/VisibilityAssist (game.tscn): 300x300 quad at z=-140, unshaded alpha, GeometryInstance Transparency 0.25, fog NOT disabled: grid.tscn's depth fog
-    // (begin 10, end 60, curve 0.15, density 1, colour fog_light_color) is saturated at >= 143 units, so the quad is the fog colour with the texture's alpha * 0.75
-    if (this.visAssist && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -140), draw: () => quad(this.tex.vis, 0, 0, -140, 300, 300, 0.75, 0, [0.0470588, 0.0313726, 0.109804, 1]) });
+    // (begin 10, end 60, curve 0.15, density 1, colour fog_light_color) applied per fragment like the planes' shader
+    if (this.visAssist && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -140), draw: () => quad(this.tex.vis, 0, 0, -140, 300, 300, 0.75, 0, true) });
     if (settings.GridGuides && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -0.2), draw: () => quad(this.tex.guides, 0, 0, -0.2, 4.04, 4.04, 1) });   // GridGuides: scale 1.01, z=-0.2
     if (!OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, 0), draw: () => quad(this.tex.grid, 0, 0, 0, 4, 4, 1) });                                    // Grid quad 4x4
     const cs = CURSOR_SIZE * settings.CursorScale, [kx, ky] = this.cursor.position;                                          // Grid.Init: CURSOR_SIZE * CursorScale

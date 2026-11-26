@@ -8,6 +8,8 @@ import { JukeboxPanel } from './ui/JukeboxPanel.js';
 import { MenuCursor } from './ui/MenuCursor.js';
 import { VERSION } from './constants.js';
 import { parseColor } from './util/misc.js';
+import { userContent } from './userContent.js';
+import { notify } from './ui/Toast.js';
 import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
 import { SoundManager } from './audio/SoundManager.js';
@@ -35,14 +37,14 @@ async function boot() {
   step('fonts', () => Promise.all(['400 16px Ubuntu', '500 16px Ubuntu', '700 16px Roboto', '500 16px Roboto', '700 16px Nunito', '600 16px Nunito'].map((f) => document.fonts.load(f))));
   // SkinManager.Load: note mesh + colorset. "skin" = the skin's config (default skin: squircle / default); a missing mesh falls back to squircle, a missing colorset keeps the skin's colours
   app.loadSkinContent = async () => {
-    const s = app.settings, text = async (u) => { try { const r = await fetch(u); return r.ok ? r.text() : null; } catch { return null; } };
+    const s = app.settings, text = (k, n) => userContent.read(k, n);
     const mesh = s.NoteMesh === 'skin' ? 'squircle' : s.NoteMesh, colors = s.NoteColors === 'skin' ? 'default' : s.NoteColors;
-    const [obj, set] = await Promise.all([text(`assets/meshes/${encodeURIComponent(mesh)}.obj`), text(`assets/colorsets/${encodeURIComponent(colors)}.txt`)]);
+    const [obj, set] = await Promise.all([text('meshes', mesh), text('colorsets', colors)]);
     if (set !== null) app.noteColors = set.trim().replace(/\r\n|[\r\n\u2028\u2029\u0085]/g, ',').split(',').map((c) => parseColor(c));   // StripEdges().ReplaceLineEndings(",").Split(",")
-    app.noteMeshText = obj ?? await text('assets/meshes/squircle.obj');
+    app.noteMeshText = obj ?? await text('meshes', 'squircle');
     app.renderer?.setNoteMesh(app.noteMeshText);
   };
-  step('colorset', () => app.loadSkinContent());
+  step('colorset', async () => { await userContent.load(); app.settings.refreshUserLists(); await app.loadSkinContent(); });
   step('audio', async () => {
     app.sound = new SoundManager(app.settings);
     const get = async (u) => app.sound.decode(await (await fetch(u)).arrayBuffer());
@@ -86,6 +88,11 @@ async function boot() {
   $('pSettings').disabled = false; $('pSettings').onclick = () => app.settingsMenu.showMenu();
   document.addEventListener('mousemove', (e) => { if (app.menuBg) app.menuBg.mouseX = e.clientX - window.innerWidth / 2; });
   hooks.refreshMenuMusic = () => app.sound.refreshMenuMusicPlayback(); hooks.reloadSkin = () => app.loadSkinContent();
+  hooks.importUserFiles = (kind) => {
+    const inp = Object.assign(document.createElement('input'), { type: 'file', multiple: true, accept: kind === 'meshes' ? '.obj' : '.txt' });
+    inp.onchange = async () => { const n = await userContent.importFiles(kind, inp.files); app.settings.refreshUserLists(); notify(`Imported ${n} ${kind}`); };
+    inp.click();
+  };
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
   const tick = (now) => { app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
   requestAnimationFrame(tick);

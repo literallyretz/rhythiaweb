@@ -158,7 +158,7 @@ export class SettingsMenu {
 class Dropdown {
   constructor(parent, id, onSelect, fixed = false) {   // fixed: the popup is placed under the button in window coordinates (a PopupMenu is its own window, not clipped by the scroll area)
     this.onSelect = onSelect; this.box = el('div', 'opt', parent); this.box.id = id;
-    this.btn = el('button', 'optbtn', this.box); this.menu = el('div', fixed ? 'popup fix' : 'popup', this.box); this.menu.hidden = true;
+    this.btn = el('button', 'optbtn', this.box); this.menu = el('div', fixed ? 'popup fix' : 'popup', fixed ? document.body : this.box); this.menu.hidden = true;   // fixed: lives on body, the settings holder is transformed and would become its containing block
     this.btn.onclick = () => {
       this.menu.hidden = !this.menu.hidden;
       if (fixed && !this.menu.hidden) {
@@ -166,7 +166,7 @@ class Dropdown {
         this.menu.style.top = `${Math.max(0, Math.min(r.bottom, innerHeight - this.menu.offsetHeight))}px`;   // popup positions are clamped to the screen
       }
     };
-    document.addEventListener('pointerdown', (e) => { if (!this.box.contains(e.target)) this.menu.hidden = true; });
+    document.addEventListener('pointerdown', (e) => { if (!this.box.contains(e.target) && !this.menu.contains(e.target)) this.menu.hidden = true; });
   }
   set(items, current) {
     this.btn.textContent = current; this.menu.textContent = '';

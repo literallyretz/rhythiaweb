@@ -61,6 +61,8 @@ export const DEFS = [
   { id: "AutoplayJukebox", type: "bool", def: true, title: "Autoplay Jukebox", desc: "Automatically plays the jukebox on start", section: "Audio", ui: true },
   { id: "LocalOffset", type: "double", def: 0, title: "Local Offset", desc: "Adjusts audio offset in milliseconds", section: "Audio", slider: { step: f(1.0), min: f(-500.0), max: f(500.0) }, ui: true },
   { id: "DisplayFPS", type: "bool", def: true, title: "Display FPS", desc: "Toggles the framerate counter in the corner", section: "Other", ui: true },
+  { id: "ImportNightlyMeshes", type: "Variant", def: 0, title: "Import Nightly Meshes", desc: "Imports meshes from the nightly folder", section: "Other", ui: true },
+  { id: "ImportNightlyColorsets", type: "Variant", def: 0, title: "Import Nightly Colorsets", desc: "Imports colorsets from the nightly folder", section: "Other", ui: true },
   { id: "RecordReplays", type: "bool", def: true, title: "Record Replays", desc: "Toggles recording for replays", section: "Other" },
   { id: "OptionalPlaytestParameters", type: "bool", def: true, title: "Use Editor Playtest Settings", desc: "Takes \\\"Start From\\\" and \\\"Speed\\\" from external editors like the SSQE when using the \\\"Playtest\\\" button", section: "Other" },
   { id: "ResetToDefaults", type: "Variant", def: 0, title: "Reset to Defaults", desc: "Resets all settings to default values", section: "Other", ui: true },
