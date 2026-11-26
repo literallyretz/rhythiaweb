@@ -1,4 +1,4 @@
-// Diagnostics only (not in the original): ?off=blur,mask,blend,stroke,outline,mapinfo,bg turns the menu effect off so ?perf=1 shows what it costs.
+// Diagnostics only (not in the original): ?off=blur,mask,blend,stroke,outline,mapinfo,cursor,hover,list,menu,bg turns the menu effect off so ?perf=1 shows what it costs.
 // (the game renderer reads the same ?off list for prepass,notes,grid,hud)
 const OFF = new Set((new URLSearchParams(location.search).get('off') || '').split(','));
 const CSS = {
@@ -8,6 +8,10 @@ const CSS = {
   stroke: '*{-webkit-text-stroke:0!important}',                                                           // text outlines
   outline: '.mi-ol{display:none!important}',                                                              // cursor-lit outlines of the map info panels
   mapinfo: '#mapInfo{display:none!important}',                                                            // the whole map info panel
+  cursor: '#menuCursor{display:none!important}body.noNative,body.noNative *{cursor:auto!important}',     // the in-game cursor image drawn in menus (shows the native one)
+  hover: '#menu *{pointer-events:none!important}',                                                        // no hover or hit-testing inside the menu
+  list: '#mapList{display:none!important}',                                                               // the map list
+  menu: '#menu{visibility:hidden!important}',                                                             // the whole menu layer (background and cursor remain)
 };
 const css = Object.keys(CSS).filter((k) => OFF.has(k)).map((k) => CSS[k]).join('\n');
 if (css) { const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s); }
