@@ -6,7 +6,7 @@ I'm a fan of [Rhythia](https://github.com/Rhythia/Client) and wanted to be able 
 
 ## What works right now
 
-The main menu, gameplay with the original HUD and settings, the results screen and the menu music player. There's one map bundled. There's no map list or map import yet, so you can't play your own maps for now.
+The main menu, the Play menu with a map list (search, sort, random), map import (`.phxm`, `.sspm`, `.rhm`, `.txt`) and export, speed and start-from, gameplay with the original HUD and settings, the results screen and the menu music player. One map is bundled. Modifiers, camera modes, the Grid layout and local leaderboards aren't done yet.
 
 ## Running it yourself
 

@@ -8,6 +8,7 @@ import { Hud } from './Hud.js';
 import { SettingsManager } from '../SettingsManager.js';
 import { tweenOpacity } from '../util/tween.js';
 import { notify } from '../ui/Toast.js';
+import { Lobby } from '../Lobby.js';
 import { MapManager } from '../map/MapManager.js';
 
 export const STEP_MS = 1000 / 120; // project.godot physics_ticks_per_second=120 (HUD-only _PhysicsProcess)
@@ -39,7 +40,7 @@ export class GameScene {
     this.stepCount = 0;
     const settings = app.settings;
     app.sound.song.stop(); app.sound.song.setStream(map.decodedAudio); app.sound.updateVolume();
-    const attempt = new Attempt(map, app.speed, 0, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0);
+    const attempt = new Attempt(map, Lobby.Speed, Lobby.StartFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0);
     // Attempt ctor: Length = max(1000 * song length, Map.Length + 1000)
     this.attempt = attempt;
     const runner = this.runner = new Runner(app.sound);

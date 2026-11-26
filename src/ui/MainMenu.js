@@ -1,6 +1,7 @@
 // Port of scripts/scenes/MainMenu.cs (menu transitions) + the Menus/Play SubTopBar buttons (ImportButton, RandomPickButton, SortMenuButton, SearchPanel).
 import { tweenOpacity, quadIn, quadInOut } from '../util/tween.js';
 import { MapManager } from '../map/MapManager.js';
+import { MapInfo } from './MapInfo.js';
 import { MapList } from './MapList.js';
 import { Lobby } from '../Lobby.js';
 import { notify } from './Toast.js';
@@ -14,6 +15,10 @@ export class MainMenu {
     this.tabs = new Map([[this.HomeMenu, $('tabHome')], [this.PlayMenu, $('tabPlay')]]);
     this.CurrentMenu = this.HomeMenu; this.LastMenu = this.HomeMenu;
     this.MapList = new MapList(app);
+    this.MapInfo = new MapInfo(app, this.MapList);
+    MapManager.Selected.ValueChanged.push(() => this.MapInfo.Select(MapManager.Selected.Value));
+    MapManager.on('deleted', (m) => setTimeout(() => { if (this.MapInfo.Map == null || this.MapInfo.Map.Name === m.Name) this.MapInfo.Clear(); }));
+    if (MapManager.Selected.Value) this.MapInfo.Select(MapManager.Selected.Value);
     $('tabHome').onclick = () => this.Transition(this.HomeMenu);
     $('tabPlay').onclick = () => this.Transition(this.PlayMenu);
     $('btnPlay').onclick = () => this.Transition(this.PlayMenu);          // Home/Buttons/Play -> Menus/Play

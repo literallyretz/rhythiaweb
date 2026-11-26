@@ -26,7 +26,7 @@ import { ResultsScene } from './scenes/Results.js';
 const $ = (id) => document.getElementById(id);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 SettingsManager.Init({ FadeOut: 25, NoteSize: 1, GridGuides: false });   // first run only: the values chosen earlier for this port
-const app = { settings: SettingsManager.Settings, speed: 1, canvas: $('gameCanvas'), noteColors: [], map: null, coverURL: null };
+const app = { get speed() { return Lobby.Speed; }, settings: SettingsManager.Settings, canvas: $('gameCanvas'), noteColors: [], map: null, coverURL: null };
 window.__rhythia = app; // handy for debugging / the automated tests
 
 // SceneManager.Load: Transition self_modulate tween, 0.25 s, TransitionType.Quad (ease in-out)
@@ -54,7 +54,7 @@ async function boot() {
     const get = async (u) => app.sound.decode(await (await fetch(u)).arrayBuffer());
     [app.sound.hitBuffer, app.sound.missBuffer, app.sound.failBuffer, app.sound.menuMusic.buffer] = await Promise.all([get('assets/skin/hit.mp3'), get('assets/skin/miss.mp3'), get('assets/skin/fail.mp3'), get('assets/skin/menu.mp3')]);   // SoundManager.UpdateSkin
     app.sound.sceneName = () => (app.menuRunning ? 'SceneMenu' : app.results.shown ? 'SceneResults' : '');   // SceneManager.Scene.Name
-    Object.defineProperty(app.sound, 'lobbySpeed', { get: () => app.speed });                                  // Lobby.Speed
+    Object.defineProperty(app.sound, 'lobbySpeed', { get: () => Lobby.Speed });                                  // Lobby.Speed
   });
   step('game renderer', async () => { app.renderer = new GameRenderer(app.canvas); await app.renderer.load('assets/'); if (app.noteMeshText) app.renderer.setNoteMesh(app.noteMeshText); });
   step('perf overlay', () => { app.perf = createPerf(app.renderer.gl, app.canvas); });
@@ -112,7 +112,8 @@ async function boot() {
   };
   Lobby.init(); app.mainMenu = new MainMenu(app);                                   // Lobby._Ready, MainMenu._Ready
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
-  const tick = (now) => { app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
+  let lastT = 0;
+  const tick = (now) => { const dt = Math.min((now - lastT) / 1000, 0.1); lastT = now; app.mainMenu.MapInfo.Process(dt); app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
   requestAnimationFrame(tick);
   app.sound.resume().catch(() => {}); app.menuRunning = true; app.sound.start(); app.sound_ready();   // MapsInitialized -> start()
   await loading.exit();

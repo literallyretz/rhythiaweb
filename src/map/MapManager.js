@@ -3,6 +3,7 @@
 // virtual file store in IndexedDB ("files", keyed by path) and the Map table is the "maps" store (keyed by the auto-increment Id).
 import { MapData, decodeFile, decodePHXMO, encodePHXMO, encodeMeta, parsePHXMFolder } from './MapParser.js';
 import { Bindable } from '../util/misc.js';
+import { writeZip } from '../util/zip.js';
 
 const DB = 'rhythiaweb-maps';
 let dbp = null;
@@ -129,6 +130,16 @@ export const MapManager = {
     const z = (s) => s.replace(/(\p{M}){4,}/gu, '$1');
     const t = z(map.PrettyTitle), mp = z(map.PrettyMappers), d = z(map.DifficultyName);
     if (t !== map.PrettyTitle || mp !== map.PrettyMappers || d !== map.DifficultyName) { map.PrettyTitle = t; map.PrettyMappers = mp; map.DifficultyName = d; this.Update(map); }
+  },
+
+  // MapParser.ExportEncode: the stored map re-decoded (the list entries carry no buffers) and written as a .phxm (uncompressed zip)
+  async exportEncode(map) {
+    const d = await this.decodeStored(map), enc = new TextEncoder();
+    const entries = [['metadata.json', enc.encode(encodeMeta(d))], ['objects.phxmo', encodePHXMO(d.Notes)]];
+    if (d.AudioBuffer != null) entries.push([`audio.${d.AudioExt}`, d.AudioBuffer]);
+    if (d.CoverBuffer != null) entries.push(['cover.png', d.CoverBuffer]);
+    if (d.VideoBuffer != null) entries.push(['video.mp4', d.VideoBuffer]);
+    return { name: `${d.Name}.phxm`, blob: writeZip(entries) };
   },
 
   // MapParser.BulkImport(paths): files is a FileList / array of File

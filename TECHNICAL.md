@@ -12,7 +12,7 @@ Rhythia Web is a JS / WebGL2 / Web Audio translation of the Rhythia Godot 4 C# c
 - URL flags (not in the original): `?scale=0.75` renders the 3D view at 75% resolution, `?perf=1` shows a per-frame cost overlay.
 
 ## Layout
-`src/game` Runner, Attempt, CameraLock · `src/map` notes and the SSPM parser · `src/audio` SoundManager · `src/render` the WebGL2 game view and menu background · `src/scenes` Loading, Hud, Game, Results, Settings · `src/ui` menu pieces · `tools` helper and test scripts · `assets` the original's files plus the bundled map.
+`src/game` Runner, Attempt, CameraLock · `src/map` notes, the map parsers and the map store · `src/audio` SoundManager · `src/render` the WebGL2 game view and menu background · `src/scenes` Loading, Hud, Game, Results, Settings · `src/ui` menu pieces · `tools` helper and test scripts · `assets` the original's files plus the bundled map.
 
 ## Settings
 Settings are the original's, in its layout (Gameplay, Visual, Audio, Other). Profiles are JSON in localStorage, in the same format as the original's. `src/settings.defs.js` is generated from `SettingsProfile.cs` by `tools/gen-settings-defs.py`, which also decides which settings the menu shows. Some settings are shown but do nothing here, as in the original (HUDParallax, SpaceEffects, SpaceHitEffects).
@@ -31,4 +31,10 @@ Not a direct translation, or different because a browser can't do the same thing
 - **News panel:** the original ships it hidden, with old 0.1.2 notes. Here it carries this port's notice, credits and a version line. That line compares the latest GitHub release of Rhythia/Client with the base version (0.2.0), like the original's update check at startup, but a browser can't self-update, so it only reports. If GitHub can't be reached it says so. Below 1100 px wide the panel is replaced by a one-line notice.
 - **Branding:** the title shows a small red "Web" under "Rhythia", and the version reads "v0.2.0" where the original shows a bare "0.2.0".
 - **First-run defaults:** new profiles start with FadeOut 25, NoteSize 1 and GridGuides off, chosen for this port. The Reset button restores the original's defaults (75, 0.875, on).
-- **Not ported:** replays, modifiers, Extras, song select and the map list. Extras, Quit and the top-bar tabs are disabled, and settings that need those features aren't shown.
+- **Map store:** the original keeps maps as folders in its user folder, with a SQLite cache (`MapCache`). Here the folders are a virtual `maps/<Name>/` in IndexedDB and the cache is an IndexedDB object store with the same fields. `MapManager` follows the original's behaviour (favourites first, then title; importing a map whose Name exists replaces it and keeps its Id).
+- **Zip files:** `.phxm` and `.rhm` are zips, read with a small reader in `src/util/zip.js` (stored and deflate, via `DecompressionStream`; no zip64). Export writes an uncompressed zip, as the original does.
+- **Map hash:** `MetadataObjectHash` is SHA-256 here; the original uses MD5, which the browser's crypto doesn't offer. It's only used to tell maps apart internally.
+- **Export / User Folder:** Export downloads the `.phxm` instead of writing to `user/export` and opening the file manager. The User Folder button shows a toast, since there's no folder to open.
+- **Bundled map:** it's imported into the store once on first run (flag `rhythia/seeded` in localStorage) and then behaves like any other map, including being deletable.
+- **Audio decoding:** maps are decoded to audio buffers when the page loads, rather than lazily.
+- **Not ported:** replays, modifiers, camera modes, the Grid layout of the map list, local leaderboards, Extras and the map filters. Extras, Quit and the filter buttons are disabled, and the Layout button does nothing, and settings that need those features aren't shown.
