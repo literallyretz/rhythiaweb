@@ -66,10 +66,12 @@ export const SettingsManager = {
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); const m = k.startsWith(PREFIX + 'profiles/') && k.endsWith('.json') ? k.slice((PREFIX + 'profiles/').length, -5) : null; if (m) out.push(m); } } catch {}
     return out.sort();
   },
-  // SettingsManager.ResetToDefaults (SetUserFolderPath / dialog items are not part of this port)
+  // SettingsManager.ResetToDefaults (SetUserFolderPath / dialog items are not part of this port): current = a fresh SettingsProfile's value (defs.GetVariant(),
+  // not DefaultValue: the fresh profile's constructor already ran updateApproachTime, so ApproachTime is AD / AR, not its declared default)
   ResetToDefaults() {
     this.HideNotifications = true;
-    for (const item of Object.values(this.Settings.items)) if (item.Type !== 'Variant') item.SetVariant(item.DefaultValue);
+    const defaults = new SettingsProfile();
+    for (const [id, item] of Object.entries(this.Settings.items)) if (item.Type !== 'Variant') item.SetVariant(defaults.items[id].GetVariant());
     this.Save();
     this.HideNotifications = false;
     notify('Settings reset to default successfully!');
