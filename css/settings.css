@@ -34,9 +34,10 @@
 .sbcat button:active{background:rgb(19,17,26);color:#fff}
 /* categories: ScrollContainer (panel margins 4, VBox separation 2) with the 4 px VScrollBar from theme.tres */
 #sCats{position:absolute;left:calc(20% + 8px);top:48px;right:8px;bottom:8px}
-.scat{position:absolute;inset:0;padding:4px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-color:#fff rgba(0,0,0,.8627)}
+.scat{position:absolute;inset:0;padding:4px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
 .scat[hidden]{display:none}
 .scat::-webkit-scrollbar{width:4px}.scat::-webkit-scrollbar-track{background:rgba(0,0,0,.8627)}.scat::-webkit-scrollbar-thumb{background:#fff;border-radius:0 4px 4px 0}
+@supports not selector(::-webkit-scrollbar){.scat{scrollbar-width:thin;scrollbar-color:#fff rgba(0,0,0,.8627)}}
 .srow{position:relative;height:32px;flex:none}
 .stitle{position:absolute;left:0;top:0;width:30%;height:32px;line-height:32px;font:400 16px Ubuntu,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* HSlider: rail = outlined 4 px box expanded by (6,5), fill = grabber_area, grabber = skin texture 32x32 centred on the value */
