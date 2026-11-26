@@ -40,3 +40,13 @@ export function parseColor(hex, fallback = [1, 1, 1]) {
   if (h.length === 4 && c4(3) < 0) return fallback; if (h.length === 8 && c8(6) < 0) return fallback;   // alpha part checked too
   return ch.some((v) => v < 0) ? fallback : ch;
 }
+
+// Port of scripts/util/bindables/Bindable.cs: setting Value always raises ValueChanged(this, {Value, OldValue}), even for an equal value
+export class Bindable {
+  constructor(defaultValue) { this.ValueChanged = []; this.Default = defaultValue; this.value = defaultValue; }
+  get Value() { return this._v; }
+  set Value(v) { const old = this._v; this._v = v; for (const f of this.ValueChanged) f(this, { Value: v, OldValue: old }); }
+  get value() { return this.Value; }
+  set value(v) { this.Value = v; }
+  Dispose() { this.ValueChanged = []; }
+}

@@ -8,7 +8,7 @@ import { Hud } from './Hud.js';
 import { SettingsManager } from '../SettingsManager.js';
 import { tweenOpacity } from '../util/tween.js';
 import { notify } from '../ui/Toast.js';
-import { parseSSPM } from '../map/MapParser.js';
+import { MapManager } from '../map/MapManager.js';
 
 export const STEP_MS = 1000 / 120; // project.godot physics_ticks_per_second=120 (HUD-only _PhysicsProcess)
 
@@ -35,7 +35,7 @@ export class GameScene {
   async start() {
     const app = this.app;
     // Game.Play / Game.Restart / Results.Replay: MapParser.Decode(...) on every attempt, so Note.LastResult/Hittable never carry over
-    const map = parseSSPM(app.mapBytes, app.mapName); map.decodedAudio = app.map.decodedAudio;   // (decoded audio is immutable, reused)
+    const map = await MapManager.decodeStored(app.map); map.decodedAudio = app.map.decodedAudio;   // (decoded audio is immutable, reused)
     this.stepCount = 0;
     const settings = app.settings;
     app.sound.song.stop(); app.sound.song.setStream(map.decodedAudio); app.sound.updateVolume();

@@ -13,6 +13,7 @@ import { userContent } from './userContent.js';
 import { notify } from './ui/Toast.js';
 import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
+import { MapManager } from './map/MapManager.js';
 import { SoundManager } from './audio/SoundManager.js';
 import { GameRenderer } from './render/GameRenderer.js';
 import { MenuBackground } from './render/MenuBackground.js';
@@ -57,13 +58,26 @@ async function boot() {
   step('perf overlay', () => { app.perf = createPerf(app.renderer.gl, app.canvas); });
   step('HUD textures', () => Promise.all(['cursor', 'health', 'health_background', 'hits', 'misses', 'miss_feedback', 'panel_left_background', 'panel_right_background', 'progress', 'progress_background']
     .map((n) => { const i = new Image(); i.src = `assets/skin/game/${n}.png`; return i.decode(); })));
+  // MapManager._Ready -> MapCache.Load(true). The bundled map is imported once on first run, like any other map (it stands in for a file already in the maps folder)
+  app.ensureAudio = async (map) => {   // Map.Audio: decoded from audio.<ext> when first needed
+    if (map.decodedAudio) return map.decodedAudio;
+    const buf = await MapManager.readAudio(map);
+    if (buf) map.decodedAudio = await app.sound.decode(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+    return map.decodedAudio;
+  };
   step('map', async () => {
-    const res = await fetch(MAP_URL); if (!res.ok) throw new Error(`Map not found: ${MAP_URL}`);
-    app.mapBytes = new Uint8Array(await res.arrayBuffer()); app.mapName = MAP_URL.split('/').pop().replace(/\.sspm$/, '');
-    const map = parseSSPM(app.mapBytes, app.mapName);
-    if (map.AudioBuffer) map.decodedAudio = await app.sound.decode(map.AudioBuffer.buffer.slice(map.AudioBuffer.byteOffset, map.AudioBuffer.byteOffset + map.AudioBuffer.byteLength));
-    app.map = map; app.sound.maps = [map];   // MapManager.Maps
-    if (map.CoverBuffer) { app.coverBlob = new Blob([map.CoverBuffer], { type: 'image/png' }); app.coverURL = URL.createObjectURL(app.coverBlob); }
+    const seeded = (() => { try { return localStorage.getItem('rhythia/seeded'); } catch { return '1'; } })();
+    if (!seeded || new URLSearchParams(location.search).get('map')) {
+      const res = await fetch(MAP_URL); if (!res.ok) throw new Error(`Map not found: ${MAP_URL}`);
+      const map = parseSSPM(new Uint8Array(await res.arrayBuffer()), MAP_URL.split('/').pop().replace(/\.sspm$/, ''));
+      await MapManager.encode(map);
+      try { localStorage.setItem('rhythia/seeded', '1'); } catch {}
+    }
+    await MapManager.initialize();
+    const map = MapManager.Maps[0] ?? null; app.map = map;
+    Object.defineProperty(app.sound, 'maps', { get: () => MapManager.Maps, set() {}, configurable: true });   // MapManager.Maps
+    for (const m of MapManager.Maps) await app.ensureAudio(m);
+    if (map?.CoverBuffer) { app.coverBlob = new Blob([map.CoverBuffer], { type: 'image/png' }); app.coverURL = URL.createObjectURL(app.coverBlob); }
   });
   step('menu background', async () => { app.menuBg = new MenuBackground($('menuCanvas')); if (app.coverBlob) await app.menuBg.setCover(app.coverBlob); });
 
