@@ -11,6 +11,7 @@ export class ResultsScene {
   }
   show(attempt) {
     this.shown = true; this.attempt = attempt;
+    this.app.menuCursor?.UpdateVisible(this.app.settings.UseCursorInMenus);   // Results._Ready: MouseMode + MenuCursor.Visible
     const m = attempt.Map, $ = (id) => document.getElementById(id);
     const set = (id, t) => { $(id).innerHTML = ''; const s = document.createElement('span'); s.textContent = t; $(id).appendChild(s); };
     set('rTitle', m.PrettyTitle); set('rDiff', m.DifficultyName); set('rMappers', `by ${m.PrettyMappers}`);

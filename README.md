@@ -23,6 +23,7 @@ Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client
 | Results screen | done, tested (PASSED / FAILED) |
 | Settings menu, profiles, volume/offset popups, FPS counter, toasts | done, browser-tested (layout, persistence round-trip) |
 | Menu music + jukebox panel (queue, pause/skip/rewind, spectrum) | done, state tested in headless Chromium; audio output NOT heard |
+| Menu cursor (UseCursorInMenus / CursorScale; menu, results, pause) | done, state tested in headless Chromium |
 | Cursor rotation, grid guides (settings) | done |
 | HUD lag on real GPU (panel uploads) | fixed (HUD canvases are CPU-backed), confirmed stable at 60 FPS on the author's laptop |
 
@@ -35,6 +36,7 @@ Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client
 - Judging runs once per rendered frame like Runner._Process, but rAF is capped to the display refresh; the original runs uncapped (vsync off).
 - Loading splash: runs uv_split.gdshader unchanged in WebGL2; the draw rect follows TextureRect KEEP_ASPECT_CENTERED (int truncation, UV spans the drawn image, not the control); shift starts at 0 (Loading._Ready), then tweens 0.2 -> 1 (Quint out, 1.5 s). Verified against an independent numpy reimplementation (tools/splash-check.py).
 - Animations: scene fades (SceneManager.Load, 0.25 s) and the pause menu fade use util/tween.js = Godot Quad ease-in-out computed per frame (was CSS easing). Loading, hit/miss popups (Quint out), Skip (Sine) and HUD lerps were already exact formulas. Godot reads a tween's trans/ease when each tweener is added (tween.cpp append -> set_tween), which Loading.js already matches.
+- Menu cursor (MenuCursor.cs): the skin cursor follows the real mouse. Godot also warps the mouse to the window centre when the pause menu opens (Input.WarpMouse); browsers cannot move the pointer, so it stays where the pointer lock left it.
 - Audio: Runner's de-sync corrector uses song position + AudioServer.GetTimeSinceLastMix. The browser has no such call, so SoundManager.timeSinceLastMix() rebuilds it from getOutputTimestamp()/outputLatency, clamped to one 512-frame mix chunk (approximation; measured effect in headless Chromium is small, real devices unverified). Hit/miss players follow MaxPolyphony 16 (oldest voice stopped). Volume dB math runs in float32 like ComputeVolumeDb.
 - Mouse deltas: Godot (Windows, captured) reports raw device counts with no DPI scaling; Chromium's movementX with unadjustedMovement is the same raw count, so it is used as is. Firefox reports CSS pixels, so only there it is multiplied by devicePixelRatio (unverified). Cursor math runs in float32 like Godot's Vector2. Still unverified on real hardware.
 - Menu/results song starts after the first click/keypress (browser autoplay rules).

@@ -5,6 +5,7 @@ import { SettingsMenu } from './scenes/SettingsMenu.js';
 import { initPopups } from './ui/Popups.js';
 import { createPerf } from './util/perf.js';
 import { JukeboxPanel } from './ui/JukeboxPanel.js';
+import { MenuCursor } from './ui/MenuCursor.js';
 import { VERSION } from './constants.js';
 import { hexColor } from './util/misc.js';
 import { tweenOpacity } from './util/tween.js';
@@ -71,7 +72,7 @@ async function boot() {
   // Settings: scenes/main.tscn Settings node (SettingsMenu) + the SETTINGS buttons (SettingsMenuButton.cs, PauseMenu.cs)
   hooks.updateVolume = () => app.sound.updateVolume(); SettingsManager.onLoaded(() => app.sound.updateVolume());
   window.addEventListener('pagehide', () => SettingsManager.Save());
-  app.settingsMenu = new SettingsMenu(app); initPopups(app);
+  app.settingsMenu = new SettingsMenu(app); initPopups(app); app.menuCursor = new MenuCursor(app);
   $('btnSettings').disabled = false; $('btnSettings').onclick = () => app.settingsMenu.showMenu();
   $('pSettings').disabled = false; $('pSettings').onclick = () => app.settingsMenu.showMenu();
   document.addEventListener('mousemove', (e) => { if (app.menuBg) app.menuBg.mouseX = e.clientX - window.innerWidth / 2; });
@@ -98,6 +99,7 @@ app.toMenu = async (withFade) => {
   app.menuBg.t0 = performance.now(); app.menuBg.coverage = 0; app.menuBg.pitch = 0; app.menuBg.fov = 90; app.menuBg._last = null;
   app.menuRunning = true;
   // MainMenu._Ready
+  app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);
   const loop = () => { if (!app.menuRunning) return; app.menuBg.frame(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);

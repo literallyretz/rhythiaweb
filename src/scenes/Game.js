@@ -49,6 +49,7 @@ export class GameScene {
     this.app.renderer.cursor.rotation = 0;                  // CursorManager.Init: cursorMesh.Transform = Identity
     this.active = true; this.paused = false; this.acc = 0; this.last = performance.now();
     this.showPause(false, true);   // Game.cs: Menu.HideMenu(true)
+    this.app.menuCursor?.UpdateVisible(false, false);   // Game.cs: MenuCursor.Instance.UpdateVisible(false, false)
     document.getElementById('gameCanvas').style.visibility = 'visible';
     this.lockPointer();
     if (!this.raf) this.raf = requestAnimationFrame((t) => this.frame(t));
@@ -120,6 +121,7 @@ export class GameScene {
     this.paused = show; r.Playing = !show;
     this.app.sound.song.pitchScale = a.Speed; this.app.sound.song.setPaused(!r.Playing);
     this.showPause(show);
+    this.app.menuCursor?.UpdateVisible(show && this.app.settings.UseCursorInMenus);   // PauseMenu.ShowMenu
     if (show) { if (document.pointerLockElement) document.exitPointerLock(); } else { this.last = performance.now(); this.lockPointer(); }
   }
   showPause(v, instant = false) { // PauseMenu.ShowMenu: Visible = true on show; modulate tween 0.25 s (Quad); callback: Visible = Shown (read when the tween ends)
