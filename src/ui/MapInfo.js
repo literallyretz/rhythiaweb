@@ -2,7 +2,6 @@
 // Camera Mode, Modifiers and the Leaderboard (with its Dim and LeaderboardHide) are not ported yet; their parts of the panel stay empty.
 import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
-import { lx, lrect } from './UIScale.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
 import { notify } from './Toast.js';
 import { radial } from './MapList.js';
@@ -207,7 +206,7 @@ class MapInfoContainer {
     e.style.opacity = this.alpha; e.style.transform = `translate(${this.posX}px,${this.posY}px) scale(${this.scale})`;
     this.info.style.transform = `translateX(${this.infoOff}px)`; this.actions.style.transform = `translateX(${this.actOff}px)`;
     for (const o of this.ols) {   // outline.gdshader: cursor_position = viewport mouse position
-      const r = lrect(o);
+      const r = o.getBoundingClientRect();
       o.style.background = `${radial(mouse[0] - r.left, mouse[1] - r.top, '38,38,38', (t) => t.toFixed(3))},#0d0d0d`;
     }
     const map = this.pvMap; if (!map) return;
@@ -237,7 +236,7 @@ export class MapInfo {
       this.holder.style.setProperty('--S', `${S}px`);
     };
     new ResizeObserver(draw).observe(root); draw();
-    this.mouse = [0, 0]; window.addEventListener('mousemove', (e) => { this.mouse = [lx(e.clientX), lx(e.clientY)]; });
+    this.mouse = [0, 0]; window.addEventListener('mousemove', (e) => { this.mouse = [e.clientX, e.clientY]; });
     MapManager.Selected.ValueChanged.push(() => this.Select(MapManager.Selected.Value));
     MapManager.on('deleted', (map) => setTimeout(() => {   // CallDeferred
       if (this.Map == null || this.Map.Name === map.Name) { this.Map = null; this.InfoContainer?.Transition(false); }

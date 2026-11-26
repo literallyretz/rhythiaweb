@@ -15,7 +15,6 @@ import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
 import { MapManager } from './map/MapManager.js';
 import { Lobby } from './Lobby.js';
-import { applyUIScale } from './ui/UIScale.js';
 import { MainMenu } from './ui/MainMenu.js';
 import { SoundManager } from './audio/SoundManager.js';
 import { GameRenderer } from './render/GameRenderer.js';
@@ -32,8 +31,6 @@ window.__rhythia = app; // handy for debugging / the automated tests
 
 // SceneManager.Load: Transition self_modulate tween, 0.25 s, TransitionType.Quad (ease in-out)
 const fade = (to) => tweenOpacity($('fade'), to ? 1 : 0, 0.25);
-
-applyUIScale(); window.addEventListener('resize', applyUIScale);
 
 // Port-only notice (not in the original): phones are unsupported; this warns but never blocks.
 const phone = navigator.userAgentData?.mobile ?? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);

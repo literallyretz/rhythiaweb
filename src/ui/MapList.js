@@ -2,7 +2,6 @@
 // Menus/Play/MapList node tree of scenes/main_menu.tscn. The Grid layout (MapButtonSquare) is not ported yet.
 import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
-import { lx, lrect } from './UIScale.js';
 import { Bindable } from '../util/misc.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
 
@@ -101,7 +100,7 @@ export class MapList {
 
     this.Sorting.ValueChanged.push(() => this.Sort()); this.Ascending.ValueChanged.push(() => this.Sort());
     this.root.addEventListener('mouseleave', () => this._toggleSelectionCursor(false));
-    window.addEventListener('mousemove', (e) => { this.mouse.x = lx(e.clientX); this.mouse.y = lx(e.clientY); this.mouse.screenY = e.screenY; }, true);
+    window.addEventListener('mousemove', (e) => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; this.mouse.screenY = e.screenY; }, true);
     // unhandled input: presses that no control consumed (buttons, inputs and the sort panel consume them)
     const handled = (t) => !!t.closest?.('button,input,a,#sortPanel,#settings');
     window.addEventListener('pointerdown', (e) => {
@@ -151,7 +150,7 @@ export class MapList {
   }
 
   _process(delta, now) {
-    const r = lrect(this.root); this.width = this.root.clientWidth; this.height = this.root.clientHeight;
+    const r = this.root.getBoundingClientRect(); this.width = this.root.clientWidth; this.height = this.root.clientHeight;
     const Size = { X: this.width, Y: this.height };
     this.buttonsPerContainer = 1;   // List layout
 
