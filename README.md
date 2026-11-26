@@ -27,4 +27,4 @@ If you want the details (how it's built, what's checked, and everywhere it diffe
 - **Rhythia** by the Rhythia developers. Original source: https://github.com/Rhythia/Client
 - **Bundled map:** *GIRLS' LEGEND U (Game Ver.)*, mapped by Sequiora, from https://www.rhythia.com/maps/11913. The song belongs to its rights holders.
 
-If you own something in this repo or on the site and want it removed, [open an issue](https://github.com/literallyretz/rhythiaweb/issues) and it'll be taken down.
+- **Takedown / rights:** if you own something in this repo or on the site and want it removed, open an issue at https://github.com/literallyretz/rhythiaweb/issues.
