@@ -7,6 +7,7 @@ import { createPerf } from './util/perf.js';
 import { JukeboxPanel } from './ui/JukeboxPanel.js';
 import { MenuCursor } from './ui/MenuCursor.js';
 import { VERSION } from './constants.js';
+import { initNews } from './ui/News.js';
 import { parseColor } from './util/misc.js';
 import { userContent } from './userContent.js';
 import { notify } from './ui/Toast.js';
@@ -78,6 +79,7 @@ async function boot() {
   await minEnter;
 
   app.game = new GameScene(app); app.results = new ResultsScene(app);
+  $('newsBase').textContent = VERSION; initNews(VERSION);
   $('ver').textContent = `v${VERSION}`; $('btnNotes').href = $('btnNotes').href.replace('VERSION', VERSION);
   $('btnPlay').onclick = () => app.play();
   // Settings: scenes/main.tscn Settings node (SettingsMenu) + the SETTINGS buttons (SettingsMenuButton.cs, PauseMenu.cs)

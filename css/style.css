@@ -101,5 +101,13 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 #fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50}
 #fatal{position:absolute;inset:0;z-index:99;background:#0b0b0b;padding:48px;font-size:16px;line-height:1.6;white-space:pre-wrap;color:#ffd8e6}
 
-#disclaimer{position:absolute;left:12px;bottom:104px;margin:0;max-width:min(560px,60vw);font:12px/16px "Roboto",sans-serif;color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000}
+/* Menus/Home/News: right-anchored (offset -600..-64), centred vertically, content-sized; ui_blur shader (brightness .5) behind it, 16px margins, header Roboto Bold 36 */
+#news{position:absolute;right:64px;top:50%;transform:translateY(-50%);width:536px;box-sizing:border-box;padding:16px;backdrop-filter:blur(6px) brightness(.5);-webkit-backdrop-filter:blur(6px) brightness(.5)}
+#newsHeader{font:700 36px/42px "Roboto",sans-serif;text-align:center}
+#newsBody{margin-top:2px;padding:0 4px;background:rgba(0,0,0,.0627);font:18px/1.2 "Ubuntu",sans-serif;user-select:text}
+#newsBody h3{margin:6px 0 2px;font:700 28px/1.2 "Roboto",sans-serif}
+#newsBody p{margin:0 0 6px}#newsBody a{color:#fff}
+#newsStatus.ok{color:#9be59b}#newsStatus.old{color:#ffb35c}
+#disclaimer{display:none;position:absolute;left:12px;bottom:104px;margin:0;max-width:min(560px,60vw);font:12px/16px "Roboto",sans-serif;color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000}
 #disclaimer a{color:rgba(255,255,255,.8)}#disclaimer a:hover{color:#fff}
+@media (max-width:1100px){#news{display:none}#disclaimer{display:block}}   /* no room for the panel: fall back to the one-line notice */
