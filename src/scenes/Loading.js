@@ -1,5 +1,7 @@
 // Port of scenes/Loading.cs: bg -> #060509 (1 s, Quad), label/bar fade in (0.5 s), splash uv_split shift 0.2 -> 1.0 (1.5 s, Quint out);
 // when initialisation is done: bg -> black (0.25 s) then the menu. The progress bar tracks real resource loading.
+import { compile, loadImage, makeTexture } from '../render/gl.js';
+
 const quadInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 const quintOut = (t) => 1 - Math.pow(1 - t, 5);
 
@@ -7,10 +9,11 @@ export class LoadingScene {
   constructor() {
     this.el = document.getElementById('loading'); this.canvas = document.getElementById('splash');
     this.label = document.getElementById('loadLabel'); this.bar = document.getElementById('loadBar'); this.fill = document.getElementById('loadFill');
-    this.img = null; this.t0 = 0; this.shift = 0.2; this.bgT = 0; this.progress = 0; this.exiting = null;
+    this.img = null; this.t0 = 0; this.shift = 0;   // Loading._Ready: SetShaderParameter("shift", 0)
+     this.bgT = 0; this.progress = 0; this.exiting = null;
   }
   async setSplash(url) {
-    const blob = await (await fetch(url)).blob(); this.img = await createImageBitmap(blob);
+    this.img = await loadImage(url);
   }
   start(app) {
     this.app = app; this.mags = []; this.ceiling = 0.01; this.targetCeiling = 0.01; this._sl = performance.now();
@@ -58,23 +61,50 @@ export class LoadingScene {
     }
     g.stroke();
   }
+  // loading.tscn Splash: TextureRect (anchors top .2 / bottom .8, EXPAND_IGNORE_SIZE, STRETCH_KEEP_ASPECT_CENTERED) with uv_split.gdshader
+  // (split .4, angle 0). The shader's UV spans the DRAWN texture rect, so the rect is computed as TextureRect::_notification(DRAW) does.
+  initSplashGL() {
+    const gl = this.gl = this.canvas.getContext('webgl2', { premultipliedAlpha: true, alpha: true, antialias: false });
+    const fs = `#version 300 es
+precision highp float; in vec2 vUV; out vec4 o; uniform sampler2D tex; uniform float split, shift, angle;
+const float PI = 3.14159265358979323846;
+vec2 rotate(vec2 v, float rad) { float x = v.x * cos(rad) - v.y * sin(rad); float y = v.x * sin(rad) + v.y * cos(rad); return vec2(x, y); }
+void main() {
+  vec2 UV = vUV; vec2 uv = UV;
+  float rad = angle * (PI / 180.0);
+  uv = rotate(uv - vec2(0.5), rad) + vec2(0.5);
+  float dir = uv.x < split ? -1.0 : 1.0;
+  float offset = dir * (1.0 - shift) / 2.0;
+  uv.x += offset;
+  uv = rotate(uv - vec2(0.5), -rad) + vec2(0.5);
+  vec4 COLOR = texture(tex, uv);
+  o = vec4(COLOR.rgb * COLOR.a, COLOR.a);   // canvas_item blend (straight alpha) via the page compositor
+}`;
+    const vs = `#version 300 es
+in vec2 aPos; in vec2 aUV; out vec2 vUV; void main() { vUV = aUV; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+    this.prog = compile(gl, vs, fs, 'uv_split'); this.vao = gl.createVertexArray(); this.vbo = gl.createBuffer();
+    gl.bindVertexArray(this.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+    for (const [n, off] of [['aPos', 0], ['aUV', 8]]) { const l = gl.getAttribLocation(this.prog.program, n); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 2, gl.FLOAT, false, 16, off); }
+    this.tex = makeTexture(gl, this.img, { srgb: false, mips: false });   // canvas items sample the raw sRGB values, default linear filter
+  }
   drawSplash() {
     const cv = this.canvas, dpr = Math.min(window.devicePixelRatio || 1, 2);
     const W = Math.floor(cv.clientWidth * dpr), H = Math.floor(cv.clientHeight * dpr);
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-    const g = cv.getContext('2d'); g.clearRect(0, 0, W, H); if (!this.img) return;
-    // TextureRect anchors top 0.2 .. bottom 0.8, full width, stretch_mode 5 (keep aspect centred)
-    const rx = 0, ry = H * 0.2, rw = W, rh = H * 0.6;
-    const sc = Math.min(rw / this.img.width, rh / this.img.height), iw = this.img.width * sc, ih = this.img.height * sc;
-    if (!this.rect || this.rect.width !== rw || this.rect.height !== Math.ceil(rh)) { this.rect = document.createElement('canvas'); this.rect.width = rw; this.rect.height = Math.ceil(rh); }
-    const rg = this.rect.getContext('2d'); rg.clearRect(0, 0, rw, rh); rg.drawImage(this.img, (rw - iw) / 2, (rh - ih) / 2, iw, ih);
-    // uv_split.gdshader: split 0.4; uv.x += dir * (1 - shift) / 2 with dir=-1 left of the split, +1 right of it
-    const split = 0.4, off = (1 - this.shift) / 2 * rw;
-    const part = (x0, x1, shiftPx) => { // dest [x0,x1) samples source [x0+shiftPx, x1+shiftPx) (clamped, transparent outside)
-      const sx0 = Math.max(0, x0 + shiftPx), sx1 = Math.min(rw, x1 + shiftPx); if (sx1 <= sx0) return;
-      g.drawImage(this.rect, sx0, 0, sx1 - sx0, this.rect.height, sx0 - shiftPx + rx, ry, sx1 - sx0, this.rect.height);
-    };
-    part(0, split * rw, -off); part(split * rw, rw, off);
+    if (!this.img || !W || !H) return;
+    if (!this.gl) this.initSplashGL();
+    const gl = this.gl; if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    // control rect: anchor_top .2, anchor_bottom .8, full width; TextureRect KEEP_ASPECT_CENTERED (int truncation as in texture_rect.cpp)
+    const cw = W, ch = H * 0.6, cy = H * 0.2, iw = this.img.width, ih = this.img.height;
+    let tw = Math.trunc(iw * ch / ih), th = Math.trunc(ch);
+    if (tw > cw) { tw = Math.trunc(cw); th = Math.trunc(ih * tw / iw); }
+    const ox = (cw - tw) / 2, oy = cy + (ch - th) / 2;
+    const x0 = ox / W * 2 - 1, x1 = (ox + tw) / W * 2 - 1, y0 = 1 - oy / H * 2, y1 = 1 - (oy + th) / H * 2;
+    gl.viewport(0, 0, W, H); gl.disable(gl.BLEND); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.prog.program); gl.bindVertexArray(this.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([x0, y0, 0, 0, x1, y0, 1, 0, x0, y1, 0, 1, x1, y1, 1, 1]), gl.DYNAMIC_DRAW);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex); gl.uniform1i(this.prog.u.tex, 0);
+    gl.uniform1f(this.prog.u.split, Math.fround(0.400000019)); gl.uniform1f(this.prog.u.shift, this.shift); gl.uniform1f(this.prog.u.angle, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
   async exit() {
     this.exiting = performance.now();

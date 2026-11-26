@@ -37,7 +37,7 @@ export class Runner {
     // De-sync corrector
     if (a.Progress > 0 && a.Progress < a.Length && !a.Stopped) {
       const song = this.sound.song;
-      const audioDelay = a.Progress - s.LocalOffset - 1000 * song.getPlaybackPosition();
+      const audioDelay = a.Progress - s.LocalOffset - 1000 * (song.getPlaybackPosition() + this.sound.timeSinceLastMix());
       if (Math.abs(audioDelay / this.Speed) > Math.max(40, delta)) {
         song.pitchScale = Math.min(Math.max(this.Speed + audioDelay / 1000, Math.max(0.01, this.Speed - 0.5)), this.Speed + 0.5);
       } else if (Math.abs(song.pitchScale - this.Speed) > 1e-5) {

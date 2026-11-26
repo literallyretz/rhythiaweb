@@ -1,8 +1,9 @@
 // Gameplay HUD. The original draws these as quads in the 3D scene (game.tscn: Runner/HUD/*) with
-// SubViewport textures; here the same quads are placed with CSS 3D transforms using the identical
-// transforms and camera FoV, so the layout/perspective matches. Update rules come from
+// SubViewport textures and Label3Ds; here the same quads are drawn by GameRenderer in the same 3D scene
+// (same camera, linear blending, depth test, alpha sorting). Hud only produces the textures. Update rules come from
 // PanelLeft.cs, PanelRight.cs, HealthBar.cs, ProgressBar.cs, Progress.cs, Title.cs, Combo.cs, Skip.cs, Grid.cs.
 import { padMagnitude } from '../util/misc.js';
+import { ComboRing } from '../render/ComboRing.js';
 
 const ASSET = 'assets/skin/game/';
 // Godot Transform3D basis vectors (x axis, y axis, z axis) and origin, copied from scenes/game.tscn
@@ -20,6 +21,8 @@ const T = {
 // Text is rasterised into canvases (like Godot's SubViewport textures / Label3D glyph atlases) at the original pixel size,
 // then the canvas is mapped onto the 3D quad. Control Label height = font ascent + descent; glyph baseline = top + ascent.
 const _m = document.createElement('canvas').getContext('2d');
+// HUD canvases are uploaded to GL textures every time they change: keep them CPU-backed so the upload doesn't stall on a GPU readback (same pixels)
+const SW = { willReadFrequently: true };
 const lineMetrics = (font) => { _m.font = font; const m = _m.measureText('Hg'); return { asc: Math.round(m.fontBoundingBoxAscent), desc: Math.round(m.fontBoundingBoxDescent) }; };
 const drawLine = (g, text, font, fill, x, cy, align, stroke) => { // (x, cy): anchor x per alignment, vertical centre of the line box
   const { asc, desc } = lineMetrics(font); g.font = font; g.textBaseline = 'alphabetic'; g.textAlign = align;
@@ -40,48 +43,50 @@ export class Hud {
   build() {
     this.root.innerHTML = '';
     // Health / ProgressBar: SubViewport 544x40 with size_2d_override 1088x80 -> drawn at half resolution, then stretched onto the quad
-    const bar = () => { const c = document.createElement('canvas'); c.width = 544; c.height = 40; c.className = 'h3'; c.style.cssText = 'width:1088px;height:80px'; this.root.appendChild(c); return c; };
+    const bar = () => { const c = document.createElement('canvas'); c.width = 544; c.height = 40; return c; };
     this.healthEl = bar(); this.progEl = bar();
     this.barImgs = {}; for (const n of ['health', 'health_background', 'progress', 'progress_background']) { const i = new Image(); i.src = `${ASSET}${n}.png`; this.barImgs[n] = i; }
     this.healthW = -1; this.progW = -1; this.healthDim = false;
     // PanelLeft / PanelRight: 250x625 SubViewports drawn into canvases
     this.imgs = {}; for (const n of ['panel_left_background', 'panel_right_background', 'hits', 'misses']) { const i = new Image(); i.src = `${ASSET}${n}.png`; this.imgs[n] = i; }
-    const mk = () => { const c = this.el('h3'); c.style.cssText = 'width:250px;height:625px'; c.innerHTML = '<canvas width="250" height="625" style="position:absolute;left:0;top:0"></canvas>'; c._c = c.firstChild; return c; };
+    const mk = () => { const c = document.createElement('canvas'); c.width = 250; c.height = 625; return { _c: c }; };
     this.leftEl = mk(); this.rightEl = mk();
-    this.ring = document.createElement('canvas'); this.ring.width = this.ring.height = 256;
+    this.ring = new ComboRing();
     this.txt = { score: '0', mult: '1x', acc: '100.00%', hits: '0', miss: '0', sum: '0' };
     this.dirty = true;
     // Label3Ds
     this.titleEl = this.world('700 64px Nunito', '#fff'); this.progLbl = this.world('600 64px Nunito', 'rgba(255,255,255,0.745)');
     this.comboEl = this.world('500 64px Ubuntu', null, { w: 4, color: 'rgba(255,255,255,0.392)' });   // modulate alpha 0, outline_size 4, outline alpha .392
-    this.speedEl = this.world('600 32px Nunito', '#fff'); this.skipEl = this.world('600 32px Nunito', '#fff'); this.skipEl.style.opacity = 0;
-    this.popupLayer = this.el('h3'); this.popupLayer.style.cssText = 'width:0;height:0;transform-style:preserve-3d';
-    this.hitPopups = 0; this.missPopups = 0;
+    this.speedEl = this.world('600 32px Nunito', '#fff'); this.skipEl = this.world('600 32px Nunito', '#fff'); this.skipEl.alpha = 0;
+    this.titleEl.alpha = 1; this.progLbl.alpha = 1; this.comboEl.alpha = 1; this.speedEl.alpha = 1;
+    this.missImg = new Image(); this.missImg.src = `${ASSET}miss_feedback.png`;
+    this.popups = []; this.hitPopups = 0; this.missPopups = 0;
+    this.ver = { health: 0, prog: 0, left: 0, right: 0 };
   }
   world(font, fill, stroke) { // Label3D: centred text, canvas at font px size; world scale applied in layout()
-    const e = this.el('h3'), c = document.createElement('canvas'); c.style.position = 'absolute'; e.appendChild(c);
+    const c = document.createElement('canvas'), e = { canvas: c, ver: 0, alpha: 1 };
     e.setText = (t) => {
       t = String(t); if (e._t === t) return; e._t = t;
       const { asc, desc } = lineMetrics(font), pad = 12; _m.font = font;
       const w = Math.ceil(_m.measureText(t).width) + pad * 2, h = asc + desc + pad * 2;
-      c.width = w; c.height = h; c.style.width = `${w}px`; c.style.height = `${h}px`; c.style.left = `${-w / 2}px`; c.style.top = `${-h / 2}px`;
-      drawLine(c.getContext('2d'), t, font, fill, w / 2, h / 2, 'center', stroke);
+      c.width = w; c.height = h; e.ver++;
+      drawLine(c.getContext('2d', SW), t, font, fill, w / 2, h / 2, 'center', stroke);
     };
     return e;
   }
   drawBar(c, name, w, key, dim) { // Main: TextureRect, stretch_mode tile, clipped to its size; Background: full 1088x80
     const iw = Math.trunc(w); if (iw === this[key] || !this.barImgs[name].complete) return; this[key] = iw;
-    const g = c.getContext('2d'); g.clearRect(0, 0, 544, 40); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = dim ? 0.502 : 1;
+    const g = c.getContext('2d', SW); g.clearRect(0, 0, 544, 40); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.globalAlpha = dim ? 0.502 : 1;
     g.drawImage(this.barImgs[name + '_background'], 0, 0, 544, 40);
     for (let x = 0; x < w; x += 1088) { const sw = Math.min(1088, w - x); if (sw > 0) g.drawImage(this.barImgs[name], 0, 0, sw, 80, x / 2, 0, sw / 2, 40); }
-    g.globalAlpha = 1;
+    g.globalAlpha = 1; this.ver[key === 'healthW' ? 'health' : 'prog']++;
   }
   drawPanels() {
     const t = this.txt, F = (w, px) => `${w} ${px}px Nunito`;
-    let g = this.leftEl._c.getContext('2d'); g.clearRect(0, 0, 250, 625); g.drawImage(this.imgs.panel_left_background, 0, 0, 250, 625);
-    g.drawImage(this.ring, 125 - 128, 625 * 0.65 - 128);
+    let g = this.leftEl._c.getContext('2d', SW); g.clearRect(0, 0, 250, 625); g.drawImage(this.imgs.panel_left_background, 0, 0, 250, 625);
+    g.drawImage(this.ring.canvas, 0, 0);   // MultiplierProgress Panel output, already at its place in the viewport
     drawLine(g, t.score, F(700, 50), '#fff', 125, 625 * 0.35, 'center'); drawLine(g, t.mult, F(600, 50), '#fff', 125, 625 * 0.65, 'center');
-    g = this.rightEl._c.getContext('2d'); g.clearRect(0, 0, 250, 625); g.drawImage(this.imgs.panel_right_background, 0, 0, 250, 625);
+    g = this.rightEl._c.getContext('2d', SW); g.clearRect(0, 0, 250, 625); g.drawImage(this.imgs.panel_right_background, 0, 0, 250, 625);
     drawLine(g, t.acc, F(700, 50), '#fff', 125, 625 * 0.35, 'center');
     const y0 = 625 * 0.625;
     drawLine(g, t.hits, F(600, 30), `rgba(255,255,255,${this.hitOp})`, 125 - 25, y0 - 2, 'right');    // offset_bottom -4 with grow both: centre at y0 - 2
@@ -91,55 +96,46 @@ export class Hud {
     const lg = g.createLinearGradient(16, 0, 234, 0);   // alpha_gradient.gdshader: alpha = (0.5 - |u - 0.5|) * 3 / 1.5
     lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = lg; g.fillRect(16, 625 * 0.65, 218, 2);
-    this.dirty = false;
+    this.dirty = false; this.ver.left++; this.ver.right++;
   }
 
   init(attempt, runner) {
     this.attempt = attempt; this.runner = runner;
     this.titleEl.setText(attempt.Map.PrettyTitle);
-    this.speedEl.setText(`${attempt.Speed.toFixed(2)}x`); this.speedEl.style.opacity = attempt.Speed === 1 ? 0 : 100 / 255;   // Speed.cs: alpha 0 at 1x, else 100/255
+    this.speedEl.setText(`${attempt.Speed.toFixed(2)}x`); this.speedEl.alpha = attempt.Speed === 1 ? 0 : 100 / 255;   // Speed.cs: alpha 0 at 1x, else 100/255
     this.skipEl.setText('Press Space to skip');
     this.cur = { health: 32 + 100 * 10.24, prog: 0, ringP: 0, ringC: [1, 1, 1] };
     this.tgt = { health: 32 + attempt.Health * 10.24, ringP: 0, ringC: [1, 1, 1] };
     this.hitOp = 0.627451; this.missOp = 0.627451; this.skipShown = false; this.skipT = 0; this.healthDim = false; this.healthW = this.progW = -1; this._last = null; this.lastProg = -1;
-    this.popupLayer.innerHTML = ''; this.hitPopups = this.missPopups = 0;
+    this.popups = []; this.hitPopups = this.missPopups = 0; this._ringKey = null;
     this.onStats(attempt);
     runner.on('attemptStatsUpdated', (a) => this.onStats(a));
     runner.on('hitResultChanged', (i, r) => this.onHit(i, r));
     runner.on('skipAvailable', (a) => { this.skipEl.setText(this.runner.ObjectIndicesStart.Note >= a.Map.Notes.length ? 'Press Space to complete' : 'Press Space to skip'); if (!this.skipShown) { this.skipShown = true; this.skipT = 0; } });
-    this.layout();
   }
 
-  // --- placement ---------------------------------------------------------------------------
-  matrix(b) { // Godot basis (world, y up) -> CSS matrix3d (y down). columns: i'=X, j'=-Y, k'=Z
-    const f = (v) => [v[0], -v[1], v[2]];
-    const X = f(b[0]), Y = f(b[1]), Z = f(b[2]);
-    return `matrix3d(${X[0]},${X[1]},${X[2]},0, ${-Y[0]},${-Y[1]},${-Y[2]},0, ${Z[0]},${Z[1]},${Z[2]},0, 0,0,0,1)`;
-  }
-  place(el, t, w, h, k, scaleBox) {
-    // el is centred on the container origin; translate to world pos, orient, scale from px box to world units
-    el.style.marginLeft = `${-w / 2}px`; el.style.marginTop = `${-h / 2}px`;
-    const s = scaleBox ? (k * t.size[0]) / w : k; // quads: box -> world size; labels: 1 CSS px = 1 world unit of font px * pixel size
-    el.style.transform = `translate3d(${t.o[0] * k}px,${-t.o[1] * k}px,${t.o[2] * k}px) ${this.matrix(t.b)} scale(${s})`;
-  }
-  layout() {
-    const H = this.canvas.clientHeight || window.innerHeight, fov = this.attempt.Settings.FoV;
-    const D = (H / 2) / Math.tan(fov * Math.PI / 360);   // CSS perspective distance (px) matching the WebGL projection
-    const k = D / 3.75;                                  // px per world unit at the grid plane (camera z = 3.75)
-    this.k = k; this.persp.style.setProperty('--D', `${D}px`);
-    this.place(this.healthEl, T.health, 1088, 80, k, true);
-    this.place(this.progEl, T.progress, 1088, 80, k, true);
-    this.place(this.leftEl, T.left, 250, 625, k, true);
-    this.place(this.rightEl, T.right, 250, 625, k, true);
-    // Label3D: world size = font_px * pixel_size * node scale. default pixel_size 0.005, progress/combo/speed/skip use 0.0025
-    const lab = (el, t, px) => { el.style.cssText += ';width:0;height:0'; el.style.transform = `translate3d(${t.o[0] * k}px,${-t.o[1] * k}px,${t.o[2] * k}px) ${this.matrix(t.b)} scale(${px * k})`; };
-    lab(this.titleEl, T.title, 0.005); lab(this.progLbl, T.progLbl, 0.0025); lab(this.comboEl, T.combo, 0.0025);
+  // --- 3D items for GameRenderer --------------------------------------------------------------
+  // Each item: texture source + version, Transform3D (basis columns incl. scale, origin), quad size in local units,
+  // material alpha, cull (StandardMaterial3D back-face cull; Label3D/Sprite3D double-sided), render priority, mipmaps.
+  // Label3D size = texture px * pixel_size (default 0.005; progress/combo/speed/skip/... use 0.0025).
+  items() {
+    const it = [];
+    const quad = (src, ver, t, w, h, alpha = 1) => it.push({ src, ver, o: t.o, b: t.b, w, h, alpha, cull: true, priority: 0, mips: false });
+    const lab = (e, t, px, priority = 0) => { if (e.canvas.width) it.push({ src: e.canvas, ver: e.ver, o: t.o, b: t.b, w: e.canvas.width * px, h: e.canvas.height * px, alpha: e.alpha, cull: false, priority, mips: false }); };
+    quad(this.healthEl, this.ver.health, T.health, 10.88, 0.8); quad(this.progEl, this.ver.prog, T.progress, 10.88, 0.8);
+    quad(this.leftEl._c, this.ver.left, T.left, 4, 10); quad(this.rightEl._c, this.ver.right, T.right, 4, 10);
+    lab(this.titleEl, T.title, 0.005); lab(this.progLbl, T.progLbl, 0.0025);
+    lab(this.comboEl, T.combo, 0.0025, -1);   // only its outline is visible (modulate alpha 0): outline_render_priority -1
     lab(this.speedEl, T.speed, 0.0025); lab(this.skipEl, T.skip, 0.0025);
-    this.popupLayer.style.transform = `scale(${k / 100})`; // popup children use 100 px per world unit
+    const I = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (const p of this.popups) {
+      if (p.hit) it.push({ src: p.canvas, ver: 1, o: [p.x, p.y, 0], b: I, w: p.canvas.width * 0.005, h: p.canvas.height * 0.005, alpha: p.alpha, cull: false, priority: 0, mips: false });
+      else if (this.missImg.complete) it.push({ src: this.missImg, ver: 1, o: [p.x, p.y, 0], b: [[0.025, 0, 0], [0, 0.025, 0], [0, 0, 0.025]], w: 512 * 0.01, h: 512 * 0.01, alpha: p.alpha, cull: false, priority: 0, mips: true });
+    }
+    return it;
   }
-  setCamera(cx, cy) { // camera parallax: the world shifts opposite to the camera
-    this.root.style.transform = `translate3d(${-cx * this.k}px,${cy * this.k}px,0)`;
-  }
+  layout() {}
+  setCamera() {}   // the renderer's camera moves; the HUD stays fixed in world space as in the original
 
   // --- updates -----------------------------------------------------------------------------
   onStats(a) {
@@ -158,22 +154,22 @@ export class Hud {
     if (result === 1) { this.hitOp = 1; this.dirty = true; if (s.HitPopups && this.hitPopups < 64) this.popup(n.X, String(this.runner.lastHitScore), true); }
     else if (result === 2) { this.missOp = 1; this.dirty = true; if (s.MissPopups && this.missPopups < 64) this.popup(n.X, null, false); }
   }
-  popup(x, text, hit) { // Grid.cs spawnHitIcon/spawnMissIcon at (note.X, -1.4, 0); transparency 0->1 (linear) + rise 0.25 units (quint out), 0.25 s
-    const e = document.createElement('div'); e.className = 'popup';
-    let a0 = 1;
-    if (hit) { // prefabs/hit_popup.tscn: Label3D Roboto-Medium, font_size 32, pixel_size 0.005, modulate alpha 0.47
-      a0 = 0.47058824; const f = '500 32px Roboto', c = document.createElement('canvas'), { asc, desc } = lineMetrics(f); _m.font = f;
-      const w = Math.ceil(_m.measureText(text).width) + 24, h = asc + desc + 24; c.width = w; c.height = h; drawLine(c.getContext('2d'), text, f, '#fff', w / 2, h / 2, 'center');
-      c.style.cssText = `display:block;width:${w}px;height:${h}px;transform:scale(.5);transform-origin:0 0`; e.style.width = `${w / 2}px`; e.style.height = `${h / 2}px`; e.appendChild(c);
-      e.dataset.w = w / 2; e.dataset.h = h / 2; this.hitPopups++;
-    } else { // prefabs/miss_icon.tscn: Sprite3D scale 0.025, pixel_size 0.01, 512 px texture -> 0.128 units
-      const i = document.createElement('img'); i.src = `${ASSET}miss_feedback.png`; i.style.cssText = 'display:block;width:12.8px;height:12.8px'; e.appendChild(i);
-      e.dataset.w = 12.8; e.dataset.h = 12.8; this.missPopups++;
+  popup(x, text, hit) { // Grid.cs spawnHitIcon/spawnMissIcon at (note.X, -1.4, 0); tween: transparency 0->1 (linear) || position +Up/4 (Quint, Out), 0.25 s
+    const p = { x, y: -1.4, t: 0, hit, alpha: 0 };
+    if (hit) { // prefabs/hit_popup.tscn: Label3D Roboto-Medium, font_size 32 (default), pixel_size 0.005, modulate alpha 0.47058824
+      p.a0 = 0.47058824; const f = '500 32px Roboto', c = document.createElement('canvas'), { asc, desc } = lineMetrics(f); _m.font = f;
+      c.width = Math.ceil(_m.measureText(text).width) + 24; c.height = asc + desc + 24; drawLine(c.getContext('2d', SW), text, f, '#fff', c.width / 2, c.height / 2, 'center');
+      p.canvas = c; this.hitPopups++;
+    } else { p.a0 = 1; this.missPopups++; } // prefabs/miss_icon.tscn: Sprite3D scale 0.025, pixel_size 0.01
+    p.alpha = p.a0; this.popups.push(p);
+  }
+  stepPopups(dt) { // Tween steps on process frames; QueueFree in the final callback
+    for (const p of this.popups) {
+      p.t = Math.min(0.25, p.t + dt); const k = p.t / 0.25;
+      p.alpha = p.a0 * (1 - k);                                  // transparency k
+      p.y = -1.4 + 0.25 * (1 - Math.pow(1 - k, 5));             // Tween TRANS_QUINT EASE_OUT
     }
-    const tx = `translate3d(${x * 100 - e.dataset.w / 2}px,${140 - e.dataset.h / 2}px,0)`, tx2 = `translate3d(${x * 100 - e.dataset.w / 2}px,${115 - e.dataset.h / 2}px,0)`;
-    e.style.transform = tx; this.popupLayer.appendChild(e);
-    e.animate([{ opacity: a0 }, { opacity: 0 }], { duration: 250, easing: 'linear', fill: 'forwards' });
-    e.animate([{ transform: tx }, { transform: tx2 }], { duration: 250, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' }).onfinish = () => { e.remove(); hit ? this.hitPopups-- : this.missPopups--; };
+    this.popups = this.popups.filter((p) => { if (p.t < 0.25) return true; p.hit ? this.hitPopups-- : this.missPopups--; return false; });
   }
   // _PhysicsProcess equivalents (120 Hz): HealthBar lerp, PanelLeft ring lerp, PanelRight opacity decay
   physics(dt) {
@@ -195,25 +191,20 @@ export class Hud {
     if (this.dirty && this.imgs.hits.complete) this.drawPanels();
     // Skip.cs: looping sine tween (in-out) alpha 0 -> .25 -> .75, then .75 <-> .25 every 0.75 s; killed with alpha 0 once CanSkip is false
     const now = performance.now(), dt = this._last == null ? 0 : (now - this._last) / 1000; this._last = now;
-    if (!a.CanSkip) { this.skipShown = false; this.skipEl.style.opacity = 0; }
+    this.stepPopups(dt);
+    if (!a.CanSkip) { this.skipShown = false; this.skipEl.alpha = 0; }
     else if (this.skipShown) {
       this.skipT += dt; const t = this.skipT, ease = (x) => (1 - Math.cos(Math.PI * x)) / 2, mix = (p, q, x) => p + (q - p) * ease(x);
       let v; if (t < 0.75) v = mix(0, 0.25, t / 0.75); else if (t < 1.5) v = mix(0.25, 0.75, (t - 0.75) / 0.75);
       else { const u = (t - 1.5) % 1.5; v = u < 0.75 ? mix(0.75, 0.25, u / 0.75) : mix(0.25, 0.75, (u - 0.75) / 0.75); }
-      this.skipEl.style.opacity = v;
+      this.skipEl.alpha = v;
     }
   }
-  drawRing() { // combo_progress.gdshader: n-gon outline, filled clockwise from the top up to `progress`
-    const g = this.ring.getContext('2d'), n = Math.min(Math.max(this.attempt.ComboMultiplierIncrement, 3), 32);
-    const key = `${n}|${this.cur.ringP.toFixed(3)}|${this.cur.ringC.map((v) => v.toFixed(2))}`; if (key === this._ringKey) return false; this._ringKey = key;
-    g.clearRect(0, 0, 256, 256);
-    const pts = []; for (let i = 0; i < n; i++) { const ang = (i / n) * Math.PI * 2; pts.push([128 + Math.sin(ang) * 64, 128 - Math.cos(ang) * 64]); }
-    const path = () => { g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]))); g.closePath(); };
-    g.lineWidth = 6; g.lineJoin = 'miter'; // shader: thickness 3 px each side of the edge
-    g.strokeStyle = 'rgb(40,40,40)'; path(); g.stroke();
-    g.save(); g.beginPath(); g.moveTo(128, 128); g.arc(128, 128, 200, -Math.PI / 2, -Math.PI / 2 + this.cur.ringP * Math.PI * 2); g.closePath(); g.clip();
-    g.strokeStyle = `rgb(${this.cur.ringC.map((v) => Math.round(v * 255)).join(',')})`; path(); g.stroke(); g.restore();
+  drawRing() { // PanelLeft._PhysicsProcess sets progress/colour; sides = clamp(ComboMultiplierIncrement, 3, 32)
+    const n = Math.min(Math.max(this.attempt.ComboMultiplierIncrement, 3), 32);
+    const key = `${n}|${this.cur.ringP}|${this.cur.ringC}`; if (key === this._ringKey) return false; this._ringKey = key;
+    this.ring.draw(this.cur.ringP, this.cur.ringC, n);
     return true;
   }
-  destroy() { this.root.innerHTML = ''; }
+  destroy() { this.popups = []; }
 }

@@ -1,5 +1,6 @@
 // Port of scripts/game/camera/CameraLock.cs + the relevant parts of CursorManager.UpdateCursor
 import { BOUNDS } from '../constants.js';
+const f = Math.fround;                                   // Godot Vector2 is single precision
 const clamp = (v) => Math.min(Math.max(v, -BOUNDS), BOUNDS);
 
 export class CameraLock {
@@ -8,15 +9,16 @@ export class CameraLock {
   // camera/cursor are plain {position:[x,y,z]} targets owned by the renderer
   Process(attempt, camera, cursor, mouseDelta, sensitivity) {
     const s = attempt.Settings;
-    const dx = mouseDelta.x * sensitivity / 120, dy = -(mouseDelta.y * sensitivity / 120);
+    // new Vector2(1, -1) * (mouseDelta * sensitivity / 120f)
+    const dx = f(f(mouseDelta.x * sensitivity) / 120), dy = -f(f(mouseDelta.y * sensitivity) / 120);
     if (s.CursorDrift) {
-      attempt.CursorPosition = { x: clamp(attempt.CursorPosition.x + dx), y: clamp(attempt.CursorPosition.y + dy) };
+      attempt.CursorPosition = { x: clamp(f(attempt.CursorPosition.x + dx)), y: clamp(f(attempt.CursorPosition.y + dy)) };
     } else {
-      attempt.RawCursorPosition = { x: attempt.RawCursorPosition.x + dx, y: attempt.RawCursorPosition.y + dy };
+      attempt.RawCursorPosition = { x: f(attempt.RawCursorPosition.x + dx), y: f(attempt.RawCursorPosition.y + dy) };
       attempt.CursorPosition = { x: clamp(attempt.RawCursorPosition.x), y: clamp(attempt.RawCursorPosition.y) };
     }
     const parallax = s.CameraParallax;
-    camera.position = [attempt.CursorPosition.x * parallax, attempt.CursorPosition.y * parallax, 3.75];
+    camera.position = [f(attempt.CursorPosition.x * f(parallax)), f(attempt.CursorPosition.y * f(parallax)), 3.75];
     camera.rotation = [0, 0, 0];
     cursor.position = [attempt.CursorPosition.x, attempt.CursorPosition.y, 0];
   }
@@ -25,7 +27,7 @@ export class CameraLock {
 // CursorManager.UpdateCursor (relative input path; absolute input / replays not in scope)
 export function updateCursor(attempt, camera, cursor, inputDelta) {
   const s = attempt.Settings;
-  let sensitivity = s.Sensitivity;
-  sensitivity *= s.FoV / 70;
+  let sensitivity = f(s.Sensitivity);                     // (float)(double)settings.Sensitivity
+  sensitivity = f(sensitivity * f(f(s.FoV) / 70));        // sensitivity *= (float)(double)settings.FoV / 70f
   attempt.CameraMode.Process(attempt, camera, cursor, inputDelta, sensitivity);
 }

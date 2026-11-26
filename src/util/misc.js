@@ -11,9 +11,11 @@ export function binarySearch(values, time) {
 // Util.String.PadMagnitude -> double.ToString("N0")
 export function padMagnitude(v) { return Math.round(v).toLocaleString('en-US'); }
 // SoundManager.ComputeVolumeDb
+// SoundManager.ComputeVolumeDb(float volume, float master, float range) -> float
 export function computeVolumeDb(volume, master, range) {
+  volume = fround(volume); master = fround(master); range = fround(range);
   if (volume <= 0 || master <= 0) return -Infinity;
-  return -80 + range * Math.pow(volume / 100, 0.1) * Math.pow(master / 100, 0.1);
+  return fround(-80 + range * Math.pow(volume / 100, 0.1) * Math.pow(master / 100, 0.1));
 }
 export const dbToLinear = (db) => (db === -Infinity ? 0 : Math.pow(10, db / 20));
 // C# (int) cast of a double: truncation toward zero

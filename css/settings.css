@@ -1,0 +1,85 @@
+@font-face{font-family:"OpenSansGodot";src:url(../assets/fonts/OpenSans_SemiBold.woff2);font-weight:600}
+/* Settings menu (scenes/main.tscn Settings node + scripts/themes/theme.tres). 1 Godot px = 1 CSS px. Control font colour = default theme 0.875 grey. */
+#settings{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.502);color:#dfdfdf}
+#sHide{position:absolute;inset:0;width:100%;height:100%;background:none;border:0;opacity:0;cursor:default}
+#sHolder{position:absolute;left:25%;top:25%;width:50%;height:50%;background:rgba(0,0,0,.8784);border-radius:4px;font:500 16px Roboto,sans-serif}
+#sDim{position:absolute;left:0;top:40px;width:20%;bottom:0;background:rgba(0,0,0,.98039);border-radius:4px}
+#sSep1{position:absolute;left:20%;top:40px;bottom:0;width:1px;background:#0d0d0d}
+#sOutline{position:absolute;inset:0;border:2px solid #0d0d0d;border-radius:4px;pointer-events:none}   /* Outline panel: outline.gdshader, outline_color 0.05 */
+/* header */
+#sHeader{position:absolute;left:0;top:0;right:0;height:40px;background:rgba(0,0,0,.98039);border-radius:4px}
+#sTitle{position:absolute;left:8px;top:2px;bottom:0;width:calc(60% - 16px);display:flex;align-items:center;font:500 24px Roboto,sans-serif;color:#fff}
+#sProfiles{position:absolute;left:75%;right:32px;top:8px;bottom:8px}
+#sCreate{position:absolute;right:8px;top:10px;bottom:10px;width:20px;background:#000;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+#sCreate:hover{background:#1e1e1e}
+#sCreate img{width:16px;height:16px;image-rendering:auto}
+#sProfileEdit{position:absolute;left:100%;width:128px;top:8px;bottom:8px;background:#000;border:0;outline:0;color:#dfdfdf;font:500 16px Roboto,sans-serif;padding:0 8px}
+#sProfileEdit[hidden]{display:none}
+/* OptionButton (engine default button styles) + PopupMenu (theme.tres) */
+.opt{position:relative}
+/* default-theme OptionButton (default_theme.cpp): normal (.1,.1,.1,.6) r3, margins 8/4, font 14 (theme.tres), alignment centre, arrow icon at right with arrow_margin 4 */
+.optbtn{position:relative;width:100%;height:100%;background:rgba(26,26,26,.6);border:0;border-radius:3px;color:rgb(223,223,223);font:500 14px Roboto,sans-serif;text-align:center;padding:0 20px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2212%22%20height%3D%2212%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%23b2b2b2%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20stroke-opacity%3D%22.85%22%20stroke-width%3D%222%22%20d%3D%22m2%204%204%204%204-4%22/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center}
+.optbtn:hover{background-color:rgba(57,57,57,.6);color:rgb(242,242,242)}.optbtn:active{background-color:rgba(0,0,0,.6);color:#fff}
+.popup{position:absolute;left:0;top:100%;min-width:100%;background:#000;border:1px solid #c90045;border-radius:4px;padding:3px;z-index:5}
+.popup[hidden]{display:none}
+.pitem{height:23px;line-height:23px;padding:0 2px;font:500 16px/23px Roboto,sans-serif;color:rgb(223,223,223);cursor:pointer;border-radius:4px;white-space:nowrap}
+.pitem:hover{background:rgb(20,20,20);color:#fff}
+/* sidebar (Theme_jhjkh) */
+#sSidebar{position:absolute;left:0;top:40px;width:20%;bottom:0;overflow-y:auto}
+.sbcat{position:relative;height:50px}
+.sbcat.sel{background:rgba(255,255,255,.0314)}
+.sbcat button{position:absolute;left:0;top:0;right:0;height:50px;background:none;border:0;text-align:left;padding:0 0 0 8px;font:500 16px Ubuntu,sans-serif;color:#dfdfdf;cursor:pointer}
+.sbcat button:hover{background:rgb(9,8,13);color:#f2f2f2}
+.sbcat button:active{background:rgb(19,17,26);color:#fff}
+/* categories: ScrollContainer (panel margins 4, VBox separation 2) with the 4 px VScrollBar from theme.tres */
+#sCats{position:absolute;left:calc(20% + 8px);top:48px;right:8px;bottom:8px}
+.scat{position:absolute;inset:0;padding:4px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;scrollbar-color:#fff rgba(0,0,0,.8627)}
+.scat[hidden]{display:none}
+.scat::-webkit-scrollbar{width:4px}.scat::-webkit-scrollbar-track{background:rgba(0,0,0,.8627)}.scat::-webkit-scrollbar-thumb{background:#fff;border-radius:0 4px 4px 0}
+.srow{position:relative;height:32px;flex:none}
+.stitle{position:absolute;left:0;top:0;width:30%;height:32px;line-height:32px;font:400 16px Ubuntu,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* HSlider: rail = outlined 4 px box expanded by (6,5), fill = grabber_area, grabber = skin texture 32x32 centred on the value */
+.slider{position:absolute;left:30%;width:60%;top:0;height:32px;cursor:pointer;outline:none;touch-action:none}
+.rail{position:absolute;left:-6px;right:-6px;top:9px;height:14px;border:2px solid #c90045;border-radius:6px}
+.fill{position:absolute;left:0;top:14px;height:4px;background:#c90045;border-radius:2px}
+.grab{position:absolute;top:0;width:32px;height:32px;background:url(../assets/skin/ui/buttons/grabber_normal.png)}
+.slider:hover .fill,.slider:focus .fill,.slider.drag .fill{background:#ff0061}
+.slider:hover .grab,.slider:focus .grab,.slider.drag .grab{background-image:url(../assets/skin/ui/buttons/grabber_pressed.png)}
+.sle{position:absolute;left:calc(90% + 8px);right:0;top:0;height:32px;background:none;border:0;outline:0;font:500 16px Roboto,sans-serif;color:#dfdfdf;caret-color:rgb(242,242,242);padding:4px 8px;overflow:hidden}
+/* CheckButton (engine default toggle icon, max width 28) */
+.toggle{position:absolute;left:calc(90% + 8px);top:0;width:40px;height:32px;cursor:pointer}
+.toggle svg{display:block;width:28px;height:14px;margin:9px 0 0 6px}
+.toggle .on{display:none}.toggle.on .on{display:inline}.toggle.on .off{display:none}
+/* Button (theme.tres) */
+.sbtns{position:absolute;left:70%;right:4px;top:4px;bottom:4px;display:flex;gap:8px}
+.sbtn{flex:1;background:#000;border:0;border-bottom:2px solid #c90045;border-radius:4px;color:#fff;font:500 16px Roboto,sans-serif;padding:0 8px;cursor:pointer}
+.sbtn:hover{background:#181818;border-bottom-color:#fff}
+.sbtn:active{background:#202020;border-bottom-color:#ccc}
+/* toasts (prefabs/notification.tscn) */
+#toasts{position:fixed;inset:0;pointer-events:none;z-index:70}
+.toast{position:fixed;right:0;bottom:0;display:flex;background:rgba(0,0,0,.498);min-width:271px;min-height:25px;will-change:transform}
+.toast .sev{width:1px;flex:none}
+.toast .tlabel{min-width:270px;min-height:25px;font:400 14px Ubuntu,sans-serif;color:#fff;display:flex;align-items:center;white-space:pre}
+/* Volume / Offset panels and FPS counter (scenes/main.tscn). Their font is the engine default (Open Sans), not in the project files. */
+#volume,#offsetPanel{position:fixed;left:50%;margin-left:-128px;bottom:32px;width:256px;height:6px;z-index:61;pointer-events:none}
+#volume .vbg{position:absolute;inset:-2px;background:rgba(0,0,0,.7686)}
+#volume .vmain{position:absolute;left:0;top:0;height:100%;background:#fff;width:0}
+.plabel{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;font:600 16px "OpenSansGodot",sans-serif;color:#dfdfdf;-webkit-text-stroke:5px rgba(0,0,0,.502);paint-order:stroke fill;white-space:nowrap}
+#fps{position:fixed;left:6px;bottom:4px;z-index:62;font:600 16px "OpenSansGodot",sans-serif;color:#dfdfdf;pointer-events:none;line-height:23px;isolation:isolate}
+#fps::before{content:"";position:absolute;left:-2px;right:-2px;top:0;bottom:0;background:rgba(0,0,0,.7686);z-index:-1}
+
+/* JukeboxPanel (scenes/main_menu.tscn): bottom strip 72 px tall, mouse_filter ignore */
+#jukebox{position:absolute;left:0;right:0;bottom:0;height:72px;overflow:hidden;pointer-events:none;z-index:3}
+#jBg{position:absolute;inset:0;backdrop-filter:blur(2px) brightness(.5);-webkit-backdrop-filter:blur(2px) brightness(.5)}   /* ui_blur.gdshader: textureLod(screen, uv, 2.0) * 0.5 */
+#jSpectrum{position:absolute;left:8px;top:8px;right:8px;bottom:8px;width:calc(100% - 16px);height:56px;pointer-events:none}
+#jTitle{position:absolute;right:calc(50% + 60px);top:50%;transform:translateY(-50%);height:19px;pointer-events:auto}
+#jTitleBg{position:absolute;inset:0;background:rgba(0,0,0,.3764706);border-radius:4px}
+#jTitleText{position:relative;display:block;white-space:nowrap;text-align:right;font:400 17px/19px Ubuntu,sans-serif;color:#fff;opacity:.74509805;-webkit-text-stroke:2px #000;paint-order:stroke fill}   /* LabelSettings: outline 1 black */
+#jTitleText::before{content:attr(data-t);position:absolute;right:-1px;top:1px;z-index:-1;-webkit-text-stroke:12px rgba(0,0,0,.502);color:transparent;stroke-linejoin:round}   /* shadow_size 6, offset (1,1) */
+#jTitle.hot #jTitleText{opacity:1}
+#jGoTo{position:absolute;inset:0;background:none;border:0;cursor:pointer}
+#jGoTo:disabled{cursor:default}
+.jBtn{position:absolute;top:13px;bottom:13px;width:30px;background:none;border:0;padding:0;cursor:pointer;opacity:.74509805;pointer-events:auto}
+.jBtn div{width:100%;height:100%;background:center/contain no-repeat}
+#jPause{left:calc(50% - 15px)}#jSkip{left:calc(50% + 20px)}#jRewind{left:calc(50% - 50px)}#jRewind div{transform:scaleX(-1)}

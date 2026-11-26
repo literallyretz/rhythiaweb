@@ -7,7 +7,7 @@ const map = parseSSPM(new Uint8Array(fs.readFileSync(new URL('../assets/maps/gir
 for (let i=100;i<map.Notes.length;i++) map.Notes[i].Millisecond+=10000;   // synthetic 10 s break after note 99
 map.Length+=10000;
 const colors=[[1,0,.35]]; const s=createSettings(); let pos=0;
-const snd={playHitSound(){},playMissSound(){},playFailSound(){},song:{playing:false,pitchScale:1,getPlaybackPosition:()=>pos/1000,getLength:()=>200000,play(){this.playing=true},stop(){},seek(){},setPaused(){}}};
+const snd={playHitSound(){},playMissSound(){},playFailSound(){},timeSinceLastMix:()=>0,song:{playing:false,pitchScale:1,getPlaybackPosition:()=>pos/1000,getLength:()=>200000,play(){this.playing=true},stop(){},seek(){},setPaused(){}}};
 const a=new Attempt(map,1,0,s,colors,0), r=new Runner(snd); r.noteColors=colors; r.onStop=()=>console.log('STOP',Math.round(a.Progress)); r.Play(a,s);
 let n0=0;
 for(let f=0;f<400000&&!a.Stopped&&a.Progress<50000;f++){

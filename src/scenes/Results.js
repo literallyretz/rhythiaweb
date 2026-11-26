@@ -19,6 +19,7 @@ export class ResultsScene {
     set('rStatus', attempt.Alive ? (attempt.Qualifies ? 'PASSED' : 'DISQUALIFIED') : 'FAILED');
     set('rSpeed', `${attempt.Speed.toFixed(2)}x`);
     if (this.app.coverURL) { $('resCoverBg').style.backgroundImage = `url(${this.app.coverURL})`; $('resCover').style.backgroundImage = `url(${this.app.coverURL})`; }
+    this.app.sound.menuMusic.stop();                           // Results._Ready: stops menu music after going to results scene
     // Results._Ready: if the song is not playing start it; PitchScale = attempt speed
     const song = this.app.sound.song; if (!song.playing && m.decodedAudio) song.play(0); song.pitchScale = attempt.Speed;
     document.getElementById('results').classList.remove('hidden');

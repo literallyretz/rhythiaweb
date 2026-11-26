@@ -17,37 +17,60 @@ void main(){
   vec3 c = texture(uTex, vUV).rgb * srgb2lin(uTint);
   float f = pow(clamp((vDist - uFogBegin)/(uFogEnd - uFogBegin), 0.0, 1.0), uFogCurve) * uFogDensity;
   c = mix(c, srgb2lin(uFog), clamp(f,0.0,1.0));
-  o = vec4(lin2srgb(c), 1.0);
+  o = vec4(c, 1.0);
 }`;
 const QUAD_VS = `#version 300 es
 layout(location=0) in vec2 aPos;
-uniform mat4 uVP; uniform vec3 uCenter; uniform vec2 uSize; out vec2 vUV;
-void main(){ vUV = aPos + 0.5; vUV.y = 1.0 - vUV.y; gl_Position = uVP * vec4(uCenter + vec3(aPos * uSize, 0.0), 1.0); }`;
+uniform mat4 uVP; uniform vec3 uCenter; uniform vec2 uSize; uniform float uRot; out vec2 vUV;
+void main(){ vUV = aPos + 0.5; vUV.y = 1.0 - vUV.y; vec2 p = aPos * uSize; float c = cos(uRot), s = sin(uRot); p = vec2(p.x * c - p.y * s, p.x * s + p.y * c); gl_Position = uVP * vec4(uCenter + vec3(p, 0.0), 1.0); }`;
 const QUAD_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR}
 in vec2 vUV; uniform sampler2D uTex; uniform float uAlpha; out vec4 o;
-void main(){ vec4 t = texture(uTex, vUV); o = vec4(lin2srgb(t.rgb), t.a * uAlpha); }`;
+void main(){ vec4 t = texture(uTex, vUV); o = vec4(t.rgb, t.a * uAlpha); }`;
 const NOTE_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 iPos; layout(location=2) in vec4 iColor;
 uniform mat4 uVP; uniform float uScale; out vec4 vColor;
 void main(){ vColor = iColor; gl_Position = uVP * vec4(iPos + aPos * uScale, 1.0); }`;
 const NOTE_FS = `#version 300 es
-precision highp float; in vec4 vColor; out vec4 o; void main(){ if (vColor.a <= 0.0) discard; o = vColor; }`;
+precision highp float; ${GLSL_COLOR} in vec4 vColor; uniform bool uPrepass; out vec4 o;
+// vertex_color_is_srgb: COLOR.rgb sRGB -> linear. depth_prepass_alpha: depth pass discards alpha < opaque_prepass_threshold (0.99)
+void main(){ if (uPrepass && vColor.a < 0.99) discard; o = vec4(srgb2lin(vColor.rgb), vColor.a); }`;
+// HUD quads (StandardMaterial3D unshaded alpha with a SubViewport texture, Label3D, Sprite3D): full Transform3D basis
+const HUD_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+uniform mat4 uVP; uniform vec3 uO, uBX, uBY; uniform vec2 uSize; out vec2 vUV;
+void main(){ vUV = vec2(aPos.x + 0.5, 0.5 - aPos.y); gl_Position = uVP * vec4(uO + uBX * (aPos.x * uSize.x) + uBY * (aPos.y * uSize.y), 1.0); }`;
+const HUD_FS = `#version 300 es
+precision highp float; in vec2 vUV; uniform sampler2D uTex; uniform float uAlpha; out vec4 o;
+void main(){ vec4 t = texture(uTex, vUV); o = vec4(t.rgb, t.a * uAlpha); }`;
+const BLIT_VS = `#version 300 es
+out vec2 vUV; void main(){ vec2 p = vec2(gl_VertexID == 1 ? 3.0 : -1.0, gl_VertexID == 2 ? 3.0 : -1.0); vUV = p * 0.5 + 0.5; gl_Position = vec4(p, 0.0, 1.0); }`;
+const BLIT_FS = `#version 300 es
+precision highp float; ${GLSL_COLOR} in vec2 vUV; uniform sampler2D uTex; out vec4 o;
+// Environment tonemap_mode default = Linear (exposure 1, white 1): clamp, then linear -> sRGB for the 8-bit screen
+void main(){ o = vec4(lin2srgb(clamp(texture(uTex, vUV).rgb, 0.0, 1.0)), 1.0); }`;
 
-const SHOW_GUIDES = false;  // set true to restore the grid guides (the + marks and faint lines); the corner brackets always draw
+// GridGuides (settings): the + marks and faint lines; the corner brackets always draw
+// Diagnostics only (not in the original): ?hdr=0 uses an 8-bit render target, ?off=prepass,notes,grid,hud skips those draws
+const Q = new URLSearchParams(location.search), OFF = new Set((Q.get('off') || '').split(','));
 const SHOW_SPACE = false;   // set true to restore the original space planes
 export class GameRenderer {
   constructor(canvas) {
-    const gl = this.gl = canvas.getContext('webgl2', { antialias: true, alpha: false, premultipliedAlpha: false, powerPreference: 'high-performance' });
+    const gl = this.gl = canvas.getContext('webgl2', { antialias: false,   // project.godot sets no msaa_3d / screen_space_aa: Godot default is no anti-aliasing
+      alpha: false, premultipliedAlpha: false, powerPreference: 'high-performance' });
     if (!gl) throw new Error('WebGL2 is not available in this browser.');
     this.canvas = canvas;
     this.cam = { position: [0, 0, 3.75], rotation: [0, 0, 0] };
-    this.cursor = { position: [0, 0, 0] };
+    this.cursor = { position: [0, 0, 0], rotation: 0 };
     this.uvOffsetY = 0;
     this.noteHitColor = [1, 1, 1];
     this.planeP = compile(gl, PLANE_VS, PLANE_FS, 'plane');
     this.quadP = compile(gl, QUAD_VS, QUAD_FS, 'quad');
     this.noteP = compile(gl, NOTE_VS, NOTE_FS, 'note');
+    this.blitP = compile(gl, BLIT_VS, BLIT_FS, 'blit');
+    this.hudP = compile(gl, HUD_VS, HUD_FS, 'hud'); this.hudTex = new Map();
+    this.hdr = !!gl.getExtension('EXT_color_buffer_float') && Q.get('hdr') !== '0';   // RGBA16F render target (Forward+ 3D buffer format)
+    this.fbo = null; this.fbW = 0; this.fbH = 0;
     this.instBuf = gl.createBuffer(); this.maxInst = 0;
   }
 
@@ -82,9 +105,26 @@ export class GameRenderer {
   }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // ?scale=0.75 renders the 3D view at 75% resolution and lets the browser stretch it (not in the original; default 1 = window size)
+    const sc = Math.min(1, Math.max(0.25, parseFloat(new URLSearchParams(location.search).get('scale')) || 1));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2) * sc;
     const w = Math.max(1, Math.floor(this.canvas.clientWidth * dpr)), h = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+  }
+
+  ensureTarget(w, h) {
+    const gl = this.gl;
+    if (this.fbo && this.fbW === w && this.fbH === h) return;
+    if (this.fbo) { gl.deleteFramebuffer(this.fbo); gl.deleteTexture(this.fbTex); gl.deleteRenderbuffer(this.fbDepth); }
+    this.fbTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, this.fbTex);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, this.hdr ? gl.RGBA16F : gl.RGBA8, w, h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    this.fbDepth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.fbDepth);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+    this.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fbTex, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.fbDepth);
+    this.fbW = w; this.fbH = h;
   }
 
   // BaseSpace.NoteHitColor.Lerp(LastHitColour, min(1, delta*8)) + Spaces/Grid.cs uv scrolling (3 units / s)
@@ -94,9 +134,10 @@ export class GameRenderer {
   }
 
   // Builds the instance list exactly like NoteRenderer.Render and draws a frame.
-  render(attempt, runner, progress, settings, noteColors) {
+  render(attempt, runner, progress, settings, noteColors, hudItems = []) {
     const gl = this.gl; this.resize();
     const w = this.canvas.width, h = this.canvas.height;
+    this.ensureTarget(w, h); gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 1); // plain black background (requested; original: project.godot default_clear_color + space planes)
     gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -115,19 +156,37 @@ export class GameRenderer {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.tile); gl.uniform1i(pu.uTex, 0);
     if (SHOW_SPACE) { gl.bindVertexArray(this.planeVAO); gl.drawArrays(gl.TRIANGLES, 0, 12); }
 
-    // --- notes (behind grid first, then grid layers, then notes that pushed back past the grid) ---
-    const { behind, front } = this.buildNotes(attempt, runner, progress, settings, noteColors);
+    // --- alpha list (RenderForwardClustered: sort_by_reverse_depth_and_priority). Every object here is an alpha material:
+    // priority ascending, then farthest first by distance camera -> AABB centre. Depth test on, no depth write
+    // (depth_draw_opaque); the note MultiMesh (ALPHA_DEPTH_PRE_PASS) first writes depth for alpha >= 0.99 in the depth prepass.
+    const inst = this.buildNotes(attempt, runner, progress, settings, noteColors); this.lastNoteCount = inst.length / 7;
+    gl.depthFunc(gl.LEQUAL);                                   // Godot reverse-Z GREATER_OR_EQUAL
+    gl.colorMask(false, false, false, false); gl.depthMask(true); gl.disable(gl.BLEND);
+    if (!OFF.has('prepass')) this.drawNotes(vp, inst, settings, true);
+    gl.colorMask(true, true, true, true); gl.depthMask(false);
     gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    this.drawNotes(vp, behind, settings);
-    gl.disable(gl.DEPTH_TEST);
-    gl.useProgram(this.quadP.program); const qu = this.quadP.u;
-    gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
-    const quad = (tex, cxq, cyq, czq, sx, sy, a) => { gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
-    if (SHOW_GUIDES && settings.GridGuides) quad(this.tex.guides, 0, 0, -0.2, 4.04, 4.04, 1);   // GridGuides: scale 1.01, z=-0.2
-    quad(this.tex.grid, 0, 0, 0, 4, 4, 1);                                        // Grid quad 4x4
-    const cs = CURSOR_SIZE * settings.CursorScale;                                // Grid.Init: CURSOR_SIZE * CursorScale
-    quad(this.tex.cursor, this.cursor.position[0], this.cursor.position[1], 0, cs, cs, Math.min(Math.max(settings.CursorOpacity, 0), 1));
-    gl.enable(gl.DEPTH_TEST); this.drawNotes(vp, front, settings);
+    const dist = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz), list = [];
+    if (inst.length && !OFF.has('notes')) { // MultiMesh AABB from this frame's instances (mesh extent noteSize/2 in x/y/z)
+      let mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+      for (let i = 0; i < inst.length; i += 7) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], inst[i + k]); mx[k] = Math.max(mx[k], inst[i + k]); }
+      list.push({ p: 0, d: dist((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2), draw: () => this.drawNotes(vp, inst, settings, false) });
+    }
+    const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
+    if (settings.GridGuides && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -0.2), draw: () => quad(this.tex.guides, 0, 0, -0.2, 4.04, 4.04, 1) });   // GridGuides: scale 1.01, z=-0.2
+    if (!OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, 0), draw: () => quad(this.tex.grid, 0, 0, 0, 4, 4, 1) });                                    // Grid quad 4x4
+    const cs = CURSOR_SIZE * settings.CursorScale, [kx, ky] = this.cursor.position;                                          // Grid.Init: CURSOR_SIZE * CursorScale
+    list.push({ p: 0, d: dist(kx, ky, 0), draw: () => quad(this.tex.cursor, kx, ky, 0, cs, cs, Math.min(Math.max(settings.CursorOpacity, 0), 1), this.cursor.rotation) });   // cursorMesh.RotationDegrees about +Z
+    if (!OFF.has('hud')) for (const it of hudItems) list.push({ p: it.priority, d: dist(it.o[0], it.o[1], it.o[2]), draw: () => this.drawHudItem(vp, it) });
+    list.sort((A, B) => (A.p === B.p ? B.d - A.d : A.p - B.p));
+    gl.disable(gl.CULL_FACE);
+    for (const e of list) e.draw();
+    gl.depthMask(true);
+    // --- output: linear buffer -> sRGB screen ---
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
+    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(this.blitP.program); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fbTex); gl.uniform1i(this.blitP.u.uTex, 0);
+    gl.bindVertexArray(this.quadVAO); gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.bindVertexArray(null);
   }
 
@@ -138,8 +197,8 @@ export class GameRenderer {
     const noteOpacity = settings.NoteOpacity, exp = Math.max(Number.EPSILON, settings.NoteOpacityExponent);
     const pushback = settings.Pushback, speed = attempt.Speed;
     const hitWindowDepth = pushback ? HIT_WINDOW * ar / 1000 : 0;
-    const behind = [], front = [];
-    for (let i = end - 1; i >= start; i--) {                 // far -> near
+    const out = [];
+    for (let i = start; i < end; i++) {                      // NoteRenderer.Process: notes[start..end], instance i = note start+i
       const n = notes[i];
       // NoteRenderer.doRender
       if (!(n.Millisecond - progress >= (pushback ? -HIT_WINDOW * speed : 0) && n.Millisecond - progress <= at * 1000 * speed) || n.LastResult === HitResult.Hit) continue;
@@ -150,16 +209,41 @@ export class GameRenderer {
       if (fadeOut > 0 && attempt.UseFadeOut) opacity -= 1 - Math.min(1, (1 - p) / fadeOut);
       const c = noteColors[n.Index % noteColors.length];
       const a = Math.min(Math.max(Math.pow(Math.max(0, opacity * noteOpacity), exp), 0), 1);
-      (depth >= 0 ? behind : front).push(n.X, n.Y, -depth, c[0], c[1], c[2], a);
+      out.push(n.X, n.Y, -depth, c[0], c[1], c[2], a);
     }
-    return { behind, front };
+    return out;
   }
 
-  drawNotes(vp, arr, settings) {
+  hudTexture(it) { // ViewportTexture / font atlas / imported texture: sampled as sRGB (source_color), linear filter (+ mipmaps for imported textures that have them)
+    const gl = this.gl; let e = this.hudTex.get(it.src);
+    if (!e) { e = { tex: gl.createTexture(), ver: -1 }; this.hudTex.set(it.src, e); }
+    if (e.ver !== it.ver) {
+      gl.bindTexture(gl.TEXTURE_2D, e.tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, it.src);
+      if (it.mips) gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, it.mips ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      e.ver = it.ver;
+    }
+    return e.tex;
+  }
+
+  drawHudItem(vp, it) {
+    if (it.alpha <= 0) return;
+    const gl = this.gl, u = this.hudP.u, tex = this.hudTexture(it);
+    gl.useProgram(this.hudP.program); gl.uniformMatrix4fv(u.uVP, false, vp);
+    gl.uniform3fv(u.uO, it.o); gl.uniform3fv(u.uBX, it.b[0]); gl.uniform3fv(u.uBY, it.b[1]); gl.uniform2f(u.uSize, it.w, it.h);
+    gl.uniform1f(u.uAlpha, it.alpha); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(u.uTex, 0);
+    if (it.cull) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); } else gl.disable(gl.CULL_FACE);
+    gl.bindVertexArray(this.quadVAO); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.disable(gl.CULL_FACE);
+  }
+
+  drawNotes(vp, arr, settings, prepass) {
     const gl = this.gl, count = arr.length / 7; if (!count) return;
     gl.useProgram(this.noteP.program); gl.uniformMatrix4fv(this.noteP.u.uVP, false, vp);
     gl.uniform1f(this.noteP.u.uScale, settings.NoteSize / 2);   // Transform3D basis = noteSize/2
-    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.depthMask(true);
+    gl.uniform1i(this.noteP.u.uPrepass, prepass ? 1 : 0);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.bindVertexArray(this.noteVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.instBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, this.noteVerts, count);

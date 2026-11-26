@@ -13,7 +13,7 @@ const colors = [[1, 0, 0.35], [1, 0.85, 0.9]];
 
 function fakeSound() {
   const s = { hits: 0, misses: 0, fails: 0, playHitSound() { s.hits++; }, playMissSound() { s.misses++; }, playFailSound() { s.fails++; },
-    song: { playing: false, pitchScale: 1, getPlaybackPosition: () => s.pos / 1000, getLength: () => 100000, play() { this.playing = true; }, stop() { this.playing = false; }, seek() {}, setPaused() {} }, pos: 0 };
+    timeSinceLastMix: () => 0, song: { playing: false, pitchScale: 1, getPlaybackPosition: () => s.pos / 1000, getLength: () => 100000, play() { this.playing = true; }, stop() { this.playing = false; }, seek() {}, setPaused() {} }, pos: 0 };
   return s;
 }
 function makeRun(map, settings = createSettings()) {

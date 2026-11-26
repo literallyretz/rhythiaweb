@@ -52,8 +52,7 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 
 
 /* Menu (game.tscn): Holder 440x560 centred; positions are the scene's anchors x 560 */
-#pause{z-index:6;background:rgba(0,0,0,.251);opacity:0;transition:opacity .25s cubic-bezier(.45,0,.55,1)}
-#pause.show{opacity:1}
+#pause{z-index:6;background:rgba(0,0,0,.251);opacity:0}
 #pHide{position:absolute;inset:0}
 #pHolder{position:absolute;left:50%;top:50%;width:440px;height:560px;margin:-280px 0 0 -220px;box-sizing:border-box;background:rgba(0,0,0,.878);border:2px solid rgba(0,0,0,.6);border-radius:12px}
 #pHeader{position:absolute;left:-1px;top:-1px;width:439px;height:120px;display:flex;align-items:center;justify-content:center;font:700 48px Roboto,sans-serif}
@@ -95,5 +94,5 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 .rbtn:hover{background:#181818;border-bottom-color:#fff}
 #rBack{left:8px;width:calc(7.5% - 8px)}#rPlay{left:92.5%;right:8px}
 
-#fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50;transition:opacity .25s ease}
+#fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50}
 #fatal{position:absolute;inset:0;z-index:99;background:#0b0b0b;padding:48px;font-size:16px;line-height:1.6;white-space:pre-wrap;color:#ffd8e6}
