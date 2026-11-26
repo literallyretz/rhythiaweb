@@ -112,10 +112,10 @@ async function boot() {
   };
   Lobby.init(); app.mainMenu = new MainMenu(app);                                   // Lobby._Ready, MainMenu._Ready
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
-  let lastT = 0;
-  const tick = (now) => { const dt = Math.min((now - lastT) / 1000, 0.1); lastT = now; app.mainMenu.MapInfo.Process(dt); app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
+  let lastT = performance.now();
+  const tick = (now) => { const dt = Math.max(0, (now - lastT) / 1000); lastT = now; if (app.menuRunning) app.mainMenu.MapInfo.Process(dt); app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
   requestAnimationFrame(tick);
-  app.sound.resume().catch(() => {}); app.menuRunning = true; app.sound.start(); app.sound_ready();   // MapsInitialized -> start()
+  app.sound.resume().catch(() => {}); app.menuRunning = true; app.mainMenu.MapInfo.ApplyPendingSelection(); app.sound.start(); app.sound_ready();   // MapsInitialized -> start()
   await loading.exit();
   app.toMenu(false);
   $('fade').style.opacity = 0;
@@ -133,8 +133,7 @@ app.toMenu = async (withFade) => {
   $('menuCanvas').style.display = 'block'; $('menu').classList.remove('hidden');
   app.menuBg.t0 = performance.now(); app.menuBg.coverage = 0; app.menuBg.pitch = 0; app.menuBg.fov = 90; app.menuBg._last = null;
   app.menuRunning = true;
-  // MainMenu._Ready
-  app.mainMenu?.reset();
+  app.mainMenu?.MapInfo.ApplyPendingSelection();   // MainMenu.Load: the cached menu scene keeps its state (InfoContainer.Refresh only reloads the leaderboard, not ported)
   app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);

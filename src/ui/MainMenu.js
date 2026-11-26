@@ -16,9 +16,6 @@ export class MainMenu {
     this.CurrentMenu = this.HomeMenu; this.LastMenu = this.HomeMenu;
     this.MapList = new MapList(app);
     this.MapInfo = new MapInfo(app, this.MapList);
-    MapManager.Selected.ValueChanged.push(() => this.MapInfo.Select(MapManager.Selected.Value));
-    MapManager.on('deleted', (m) => setTimeout(() => { if (this.MapInfo.Map == null || this.MapInfo.Map.Name === m.Name) this.MapInfo.Clear(); }));
-    if (MapManager.Selected.Value) this.MapInfo.Select(MapManager.Selected.Value);
     $('tabHome').onclick = () => this.Transition(this.HomeMenu);
     $('tabPlay').onclick = () => this.Transition(this.PlayMenu);
     $('btnPlay').onclick = () => this.Transition(this.PlayMenu);          // Home/Buttons/Play -> Menus/Play
@@ -34,13 +31,6 @@ export class MainMenu {
   }
 
   // MainMenu._Ready: a freshly loaded menu scene starts on Home with a fresh MapList
-  reset() {
-    this.CurrentMenu = this.HomeMenu; this.LastMenu = this.HomeMenu;
-    this.HomeMenu.style.display = ''; this.HomeMenu.style.opacity = 1; this.PlayMenu.style.display = 'none'; this.PlayMenu.style.opacity = 0;
-    $('tabHome').disabled = true; $('tabPlay').disabled = false;
-    const l = this.MapList; l.selectedMapID = null; l.Scroll = l.TargetScroll = l.ScrollMomentum = 0; l.DisplaySelectionCursor = false; l.cursor.style.opacity = 0; l._clear();
-  }
-
   Transition(menu, instant = false) {
     if (this.CurrentMenu === menu) return;
     this.LastMenu = this.CurrentMenu; this.CurrentMenu = menu;
