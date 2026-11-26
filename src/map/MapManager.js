@@ -65,7 +65,7 @@ export const MapManager = {
     const [objects, cover] = await Promise.all([this.readFile(dir + 'objects.phxmo'), this.readFile(dir + 'cover.png')]);
     const map = new MapData(row.Name, [], null, '', '', 0, null, 0, null, 0, null, null);
     Object.assign(map, row);
-    map.Mappers = row.CachedMappers.split('_');
+    map.Mappers = [];   // Mappers is [Ignore]d: a cached Map has none, PrettyMappers / CachedMappers carry them
     map.Notes = objects ? decodePHXMO(objects) : [];
     map.CoverBuffer = cover ?? null;
     return map;

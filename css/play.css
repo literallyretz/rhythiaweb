@@ -1,0 +1,61 @@
+/* Menus/Play (scenes/main_menu.tscn) + prefabs/map_button_wide.tscn + themes/theme.tres. 1 Godot px = 1 CSS px. */
+#plBg{position:absolute;inset:0;border-radius:3px 0 0 3px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}   /* ui_blur.gdshader (brightness 1) */
+#plTile{position:absolute;inset:0;background:url(../assets/skin/ui/background_tile.png);background-size:32px 32px;image-rendering:pixelated;animation:plTile 1s linear infinite}   /* background_tile.gdshader: UV.x -= TIME */
+@keyframes plTile{to{background-position-x:-32px}}
+
+/* MapList: anchor_left .5, anchor_right 1, offset_top 128, offset_right -8, offset_bottom -80 */
+#mapList{position:absolute;left:50%;right:8px;top:128px;bottom:80px}
+#mlMask{position:absolute;left:0;top:0;right:12px;bottom:0;overflow:hidden;-webkit-mask:url(../assets/skin/ui/play/maplist_mask.png) 0 0/100% 100% no-repeat;mask:url(../assets/skin/ui/play/maplist_mask.png) 0 0/100% 100% no-repeat}
+#mlCursor{position:absolute;left:0;top:0;width:40px;height:40px;opacity:0;pointer-events:none;will-change:transform;background:#c90045;-webkit-mask:url(../assets/skin/ui/play/maplist_selection_cursor.png) 0 0/100% 100%;mask:url(../assets/skin/ui/play/maplist_selection_cursor.png) 0 0/100% 100%}   /* self_modulate c90045 */
+#mlBar{position:absolute;right:0;top:0;bottom:0;width:12px;z-index:1}
+#mlBarBg,#mlBarMain{position:absolute;left:0;right:0;top:0;bottom:0}
+#mlBarMain{overflow:hidden}
+#mlBar img{position:absolute;left:0;width:12px;height:12px;display:block}
+#mlBar .t{top:0}#mlBar .b{bottom:0}#mlBar .m{top:12px;bottom:12px;height:auto}
+
+/* MapButtonWide: Holder (black .878, radius 5 on the left), Outline (2px border, outline.gdshader), Cover, Favorited, Title, Separator, Extra */
+.mrow{position:absolute;left:0;right:0;top:0;pointer-events:none}
+.mb{position:absolute;inset:0;overflow:hidden}
+.mb .hold{position:absolute;top:0;right:0;bottom:0;background:rgba(0,0,0,.8784);border-radius:5px 0 0 5px;transition:background-color .15s;pointer-events:none}
+.mb.hov .hold{background:rgba(26,6,13,.8784)}
+.mb .out{position:absolute;inset:0;border-radius:4px 0 0 4px;padding:2px;box-sizing:border-box;
+  -webkit-mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.mb .cov{position:absolute;left:25%;right:2px;top:2px;bottom:2px;background-size:cover;background-position:center;opacity:.502;transition:opacity .1s;
+  -webkit-mask:linear-gradient(to right,transparent 0,rgba(0,0,0,.8) 53.333%,rgba(0,0,0,.8));mask:linear-gradient(to right,transparent 0,rgba(0,0,0,.8) 53.333%,rgba(0,0,0,.8))}
+.mb.sel .cov{opacity:1}
+.mb .fav{position:absolute;right:8px;top:8px;width:24px;height:24px;display:none}
+.mb .fav i{display:block;width:24px;height:24px;-webkit-mask:url(../assets/skin/ui/play/favorite.png) center/100% 100%;mask:url(../assets/skin/ui/play/favorite.png) center/100% 100%}
+.mb .ttl{position:absolute;left:16px;top:8px;right:40px;height:calc(50% - 8px);display:flex;align-items:center;font:500 23px Roboto,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  -webkit-text-stroke:1px #000;paint-order:stroke fill;text-shadow:3px 1px 0 #000,-1px 1px 0 #000,1px 3px 0 #000,1px -1px 0 #000,2.4px 2.4px 0 #000,-.4px 2.4px 0 #000,2.4px -.4px 0 #000,-.4px -.4px 0 #000}
+.mb .ttl span{overflow:hidden;text-overflow:ellipsis}
+.mb .sepr{position:absolute;left:16px;right:16px;top:50%;height:1px;background:linear-gradient(to right,rgba(255,255,255,.1255),rgba(255,255,255,0))}
+.mb .ext{position:absolute;left:16px;right:8px;top:50%;bottom:8px;display:flex;align-items:center;font:500 18px Roboto,sans-serif;color:#808080;white-space:pre;overflow:hidden;
+  -webkit-text-stroke:2px #000;paint-order:stroke fill}
+.mb .ext>span{white-space:pre}.mb .ext b{font-weight:500}
+.mb button.hit{position:absolute;inset:0;background:none;border:0;padding:0;cursor:pointer;opacity:0;pointer-events:auto}
+
+/* SubTopBar: offset_left 8, top 72, right -8, bottom 128; HBoxContainer alignment end, separation 4 */
+#subTop{position:absolute;left:8px;right:8px;top:72px;height:56px;pointer-events:none}
+#stRow{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;justify-content:flex-end;align-items:center;gap:4px;pointer-events:none}
+#stRow>*{pointer-events:auto}
+/* theme.tres Button: normal black + 2px bottom #c90045, hover #181818 + white, pressed #181818 + white (content shifted 1px), disabled rgba(0,0,0,.235), radius 4, margins 8/6 */
+.tbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:36px;box-sizing:border-box;padding:6px 8px;background:#000;border:0;border-bottom:2px solid #c90045;border-radius:4px;color:#fff;font:500 16px Roboto,sans-serif;cursor:pointer}
+.tbtn img{width:18px;height:18px;max-width:18px;display:block}
+.tbtn:hover:not(:disabled){background:#181818;border-bottom-color:#fff}
+.tbtn:active:not(:disabled),.tbtn.on{background:#181818;border-bottom-color:#fff;padding:7px 8px 5px}
+.tbtn:disabled{background:rgba(0,0,0,.2353);border-bottom-color:transparent;cursor:default}
+.stSep{width:20px;height:36px;position:relative}.stSep i{position:absolute;left:50%;top:4px;bottom:4px;width:1px;background:rgba(255,255,255,.1255)}
+/* SortMenuButton: Panel anchored at the button's bottom centre, offset_top 4 */
+.tg{position:relative;flex:none}
+#sortPanel{position:absolute;left:50%;top:100%;margin-top:4px;transform:translateX(-50%);z-index:1;min-width:140px;box-sizing:border-box;padding:6px;display:flex;flex-direction:column;gap:3px;background:rgba(0,0,0,.8784);border-radius:4px;cursor:default}
+#sortPanel[hidden]{display:none}
+#sortPanel .tbtn{width:100%;justify-content:center;font-size:16px}
+#sortPanel .sRow{display:flex;align-items:center;justify-content:space-around;gap:4px}
+#sortPanel .sRow .tbtn{width:auto}#sortPanel .sRow .tbtn img{width:24px;height:24px;max-width:24px}
+#sortOrderLabel{font:500 16px Roboto,sans-serif;color:#dfdfdf}
+/* search panels: black, radius 4; LineEdit offset_left 32 (theme.tres LineEdit normal/focus), icon 20x20 at left 6, self_modulate .5 when empty */
+.sPanel{position:relative;height:36px;background:#000;border-radius:4px;flex:none}
+.sPanel img{position:absolute;left:6px;top:8px;width:20px;height:20px;opacity:.498;pointer-events:none}
+.sPanel input{position:absolute;left:32px;right:0;top:2px;bottom:2px;box-sizing:border-box;background:transparent;border:1px solid transparent;border-radius:4px;outline:0;padding:4px 8px 4px 2px;color:#fff;font:500 16px Roboto,sans-serif}
+.sPanel input:focus{background:rgba(0,0,0,.8627);border-color:#1f1f1f;padding-left:8px}
+.sPanel input::placeholder{color:rgba(255,255,255,.5)}

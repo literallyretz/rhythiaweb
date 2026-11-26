@@ -14,6 +14,8 @@ import { notify } from './ui/Toast.js';
 import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
 import { MapManager } from './map/MapManager.js';
+import { Lobby } from './Lobby.js';
+import { MainMenu } from './ui/MainMenu.js';
 import { SoundManager } from './audio/SoundManager.js';
 import { GameRenderer } from './render/GameRenderer.js';
 import { MenuBackground } from './render/MenuBackground.js';
@@ -95,7 +97,6 @@ async function boot() {
   app.game = new GameScene(app); app.results = new ResultsScene(app);
   $('newsBase').textContent = VERSION; initNews(VERSION);
   $('ver').textContent = `v${VERSION}`; $('btnNotes').href = $('btnNotes').href.replace('VERSION', VERSION);
-  $('btnPlay').onclick = () => app.play();
   // Settings: scenes/main.tscn Settings node (SettingsMenu) + the SETTINGS buttons (SettingsMenuButton.cs, PauseMenu.cs)
   hooks.updateVolume = () => app.sound.updateVolume(); SettingsManager.onLoaded(() => app.sound.updateVolume());
   window.addEventListener('pagehide', () => SettingsManager.Save());
@@ -109,6 +110,7 @@ async function boot() {
     inp.onchange = async () => { const n = await userContent.importFiles(kind, inp.files); app.settings.refreshUserLists(); notify(`Imported ${n} ${kind}`); };
     inp.click();
   };
+  Lobby.init(); app.mainMenu = new MainMenu(app);                                   // Lobby._Ready, MainMenu._Ready
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
   const tick = (now) => { app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
   requestAnimationFrame(tick);
@@ -131,6 +133,7 @@ app.toMenu = async (withFade) => {
   app.menuBg.t0 = performance.now(); app.menuBg.coverage = 0; app.menuBg.pitch = 0; app.menuBg.fov = 90; app.menuBg._last = null;
   app.menuRunning = true;
   // MainMenu._Ready
+  app.mainMenu?.reset();
   app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);
@@ -138,6 +141,16 @@ app.toMenu = async (withFade) => {
   await fade(0);
 };
 
+// Game.Play(map, ...): the played map is the one the Lobby holds
+app.playMap = async (map) => {
+  if (!map || app.starting) return;
+  app.starting = true;
+  try {
+    app.map = map; await app.ensureAudio(map);
+    app.coverURL = app.mainMenu.MapList.coverURL(map);
+    await app.play();
+  } finally { app.starting = false; }
+};
 app.play = async (fromResults) => {
   await app.sound.resume();
   await fade(1);

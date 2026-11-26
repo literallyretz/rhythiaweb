@@ -6,4 +6,5 @@ export const HIT_BOX_SIZE = 0.07;
 export const HIT_WINDOW = 55;
 export const BREAK_TIME = 4000;
 export const DIFFICULTIES = ['N/A', 'Easy', 'Medium', 'Hard', 'Insane', 'Illogical'];
+export const DIFFICULTY_COLORS = ['#ffffff', '#77f379', '#fff832', '#e24479', '#9d6eff', '#0094fc'];   // Constants.DIFFICULTY_COLORS
 export const VERSION = '0.2.0'; // project.godot config/version

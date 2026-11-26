@@ -111,3 +111,7 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 #disclaimer{display:none;position:absolute;left:12px;bottom:104px;margin:0;max-width:min(560px,60vw);font:12px/16px "Roboto",sans-serif;color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000}
 #disclaimer a{color:rgba(255,255,255,.8)}#disclaimer a:hover{color:#fff}
 @media (max-width:1100px){#news{display:none}#disclaimer{display:block}}   /* no room for the panel: fall back to the one-line notice */
+
+/* Menus (scenes/main_menu.tscn: Menus/Home, Menus/Play). Panels share the full screen and cross-fade (MainMenu.Transition); TopBar is drawn above them. */
+.mpanel{position:absolute;inset:0}
+#topbar{z-index:5}
