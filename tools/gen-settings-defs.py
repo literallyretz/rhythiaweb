@@ -19,7 +19,7 @@ for m in re.finditer(r'\n        (\w+) = new\(([^)]*)\)\s*\{',init):
     items[name]=dict(t=decl[name],d=raw,f=raw.endswith('f') and not raw.startswith('"'),title=g('Title'),desc=g('Description'),section=sec.group(1),slider=slider)
 print('ordered',len(order),'skipped (unparsed):',[n for n in order if n not in items])
 ui={'Gameplay':['Sensitivity','CursorDrift','ApproachRate','ApproachDistance','FadeIn','FadeOut','Pushback','CameraParallax','FoV'],
- 'Visual':['NoteOpacity','NoteOpacityExponent','NoteSize','GridGuides','CursorScale','CursorOpacity','CursorRotation','HPLerpValue','HitPopups','MissPopups'],
+ 'Visual':['NoteOpacity','NoteOpacityExponent','NoteSize','GridGuides','CursorScale','CursorOpacity','CursorRotation','UseCursorInMenus','CursorTrail','TrailTime','TrailDetail','HPLerpValue','HitPopups','MissPopups'],
  'Audio':['AutoplayJukebox','LocalOffset','AlwaysPlayHitSound','EnableHitSound','EnableMissSound','EnableMenuMusic','VolumeMaster','VolumeMusic','VolumeSFX','VolumeHitSound','VolumeMissSound','VolumeMenuMusic'],
  'Other':['DisplayFPS','ResetToDefaults']}
 shown=set(x for v in ui.values() for x in v)
