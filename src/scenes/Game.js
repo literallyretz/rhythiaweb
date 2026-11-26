@@ -7,6 +7,7 @@ import { updateCursor } from '../game/CameraLock.js';
 import { Hud } from './Hud.js';
 import { SettingsManager } from '../SettingsManager.js';
 import { tweenOpacity } from '../util/tween.js';
+import { notify } from '../ui/Toast.js';
 import { parseSSPM } from '../map/MapParser.js';
 
 export const STEP_MS = 1000 / 120; // project.godot physics_ticks_per_second=120 (HUD-only _PhysicsProcess)
@@ -19,6 +20,9 @@ export class GameScene {
     document.addEventListener('pointermove', (e) => this.onMouseMove(e));
     document.addEventListener('keydown', (e) => this.onKey(e));
     document.addEventListener('pointerlockchange', () => this.onLockChange());
+    // Web-only (not in the original): a browser cannot confine the pointer, so Absolute Input is only playable in fullscreen (F11 or the Fullscreen API)
+    const leftFullscreen = () => { if (this.active && this.app.settings.AbsoluteInput && !this.isFullscreen() && this.runner?.Playing && !this.paused) { this.togglePause(true); notify('Absolute Input needs fullscreen. Press F11.'); } };
+    document.addEventListener('fullscreenchange', leftFullscreen); window.addEventListener('resize', leftFullscreen);
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.active && this.runner.Playing) this.togglePause(true); });
     window.addEventListener('blur', () => { if (this.active && this.runner?.Playing) this.togglePause(true); });
     window.addEventListener('resize', () => { if (this.active) this.hud.layout(); });
@@ -53,6 +57,7 @@ export class GameScene {
     this.trail.reset(); this.app.renderer.trail = this.trail;   // fresh TrailRenderer per Game scene
     this.active = true; this.paused = false; this.acc = 0; this.last = performance.now();
     this.showPause(false, true);   // Game.cs: Menu.HideMenu(true)
+    if (settings.AbsoluteInput && !this.isFullscreen()) this.enterFullscreen().then((ok) => { if (!ok && this.active && !this.paused) { this.togglePause(true); notify('Absolute Input needs fullscreen. Press F11.'); } });
     this.app.menuCursor?.UpdateVisible(false, false);   // Game.cs: MenuCursor.Instance.UpdateVisible(false, false)
     document.getElementById('gameCanvas').style.visibility = 'visible';
     this.lockPointer();
@@ -127,10 +132,23 @@ export class GameScene {
   }
 
   // PlayerInputController.OnTogglePaused handler in Game.cs + PauseMenu.ShowMenu
+  isFullscreen() {   // F11 (display-mode) or the Fullscreen API
+    return !!document.fullscreenElement || matchMedia('(display-mode: fullscreen)').matches || (innerWidth >= screen.width - 1 && innerHeight >= screen.height - 1);
+  }
+  // asks for fullscreen from a click (Play / Resume); resolves true when the page is fullscreen
+  async enterFullscreen() {
+    if (!this.isFullscreen()) { try { await document.documentElement.requestFullscreen?.(); } catch { /* needs a user gesture */ } }
+    return this.isFullscreen();
+  }
+
   togglePause(force) {
     const r = this.runner, a = this.attempt; if (a.Stopped) return;
     const show = force ?? !this.paused;
     if (show === this.paused) return;
+    if (!show && this.app.settings.AbsoluteInput && !this.isFullscreen()) {   // resume is blocked until fullscreen
+      this.enterFullscreen().then((ok) => { if (ok) this.togglePause(false); else notify('Absolute Input needs fullscreen. Press F11.'); });
+      return;
+    }
     if (r.ObjectIndicesStart.Note > 0 && a.Progress < a.Map.Notes[a.Map.Notes.length - 1].Millisecond) a.Qualifies = false;
     this.paused = show; r.Playing = !show;
     this.app.sound.song.pitchScale = a.Speed; this.app.sound.song.setPaused(!r.Playing);
