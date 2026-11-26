@@ -1,6 +1,6 @@
-# Rhythia – browser port (minimal playable)
+# Rhythia Web – browser port (minimal playable + settings, jukebox)
 
-Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client (AGPL-3.0, see LICENSE.original). Godot is not used at runtime.
+Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client (AGPL-3.0, see LICENSE.original). Godot is not used at runtime. Where the source can be translated it is; anything else is listed under "Known deviations".
 
 ## Run / embed
 - `python3 serve.py 8000` then open http://localhost:8000/ (ES modules need HTTP, not file://). Any static host works.
@@ -21,9 +21,13 @@ Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client
 | Original audio (map, hit, miss, fail) | decoded + plays (state verified; actual sound output NOT heard) |
 | Pause / resume / restart / quit / skip | pause, resume, restart, quit tested; skip untested |
 | Results screen | done, tested (PASSED / FAILED) |
+| Settings menu, profiles, volume/offset popups, FPS counter, toasts | done, browser-tested (layout, persistence round-trip) |
+| Menu music + jukebox panel (queue, pause/skip/rewind, spectrum) | done, state tested in headless Chromium; audio output NOT heard |
+| Cursor rotation, grid guides (settings) | done |
+| HUD lag on real GPU (panel uploads) | fixed (HUD canvases are CPU-backed), confirmed stable at 60 FPS on the author's laptop |
 
 ## Test results
-- `node tools/test-logic.mjs`: 34/34.
+- `node tools/test-logic.mjs`: 33/33.
 - Browser (headless Chromium, SwiftShader): full flow; perfect-aim script → 593/593, 100.00%, 468,800, PASSED; idle → FAILED after 5 misses; pause freezes progress and song.
 - Not verified: real GPU rendering/performance, real pointer lock + mouse feel (tests inject mousemove), audio audibility/sync by ear, other browsers, mobile.
 
@@ -35,8 +39,9 @@ Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client
 - Mouse deltas: Godot (Windows, captured) reports raw device counts with no DPI scaling; Chromium's movementX with unadjustedMovement is the same raw count, so it is used as is. Firefox reports CSS pixels, so only there it is multiplied by devicePixelRatio (unverified). Cursor math runs in float32 like Godot's Vector2. Still unverified on real hardware.
 - Menu/results song starts after the first click/keypress (browser autoplay rules).
 - HUD/menus are DOM/CSS/canvas built from the .tscn values; renderer shaders are my GLSL from the Godot material settings.
-- Not ported: replays, modifiers, settings UI, jukebox panel, extras, song select, News panel (hidden in the original anyway). Settings/Extras/Quit and top-bar tabs are disabled.
-- Tween easings use CSS/closed-form equivalents of Godot's.
+- Not ported: replays, modifiers, extras, song select, map list, News panel (hidden in the original anyway). Extras/Quit and top-bar tabs are disabled. Settings that need unported features are not shown in the settings menu.
+- "Web" mark: the title shows "Rhythia" with a small red "Web" under it (menu and results), and the version reads "v0.2.0" (the original shows a bare "0.2.0"). Both are intentional additions.
+- First run: new profiles start with FadeOut 25, NoteSize 1, GridGuides off (chosen for this port); the settings Reset button restores the original defaults (75, 0.875, on).
 
 ## Settings menu
 Settings button (main menu + pause) / Ctrl+O opens the original-layout settings menu (Gameplay, Visual, Audio, Other); only settings this port uses are shown. Profiles are JSON in localStorage (same format/rounding as SettingsProfileConverter). Ctrl/Alt+wheel = master volume, Shift+wheel = local offset, DisplayFPS shows the FPS counter. Toggle/arrow icons, button/popup styles and wheel step are the engine's own (default_theme.cpp, icons SVGs, scroll_bar.cpp); the FPS/volume font is Godot's default Open Sans SemiBold. Remaining deviation: HTML controls instead of Godot's, settings saved on change/page close instead of at quit. First run uses FadeOut 25 / NoteSize 1 / GridGuides off; "Reset" restores the original defaults.
