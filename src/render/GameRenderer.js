@@ -177,6 +177,15 @@ export class GameRenderer {
     if (!OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, 0), draw: () => quad(this.tex.grid, 0, 0, 0, 4, 4, 1) });                                    // Grid quad 4x4
     const cs = CURSOR_SIZE * settings.CursorScale, [kx, ky] = this.cursor.position;                                          // Grid.Init: CURSOR_SIZE * CursorScale
     list.push({ p: 0, d: dist(kx, ky, 0), draw: () => quad(this.tex.cursor, kx, ky, 0, cs, cs, Math.min(Math.max(settings.CursorOpacity, 0), 1), this.cursor.rotation) });   // cursorMesh.RotationDegrees about +Z
+    // TrailRenderer's CursorTrail MultiMesh (game.tscn): unshaded alpha-blended 1x1 quads scaled by the cursor size, rotated about +Z, drawn in instance order; its
+    // sort depth uses the MultiMesh AABB (union of the transformed 1x1 quads) like the notes; GeometryInstance Transparency = 1 - CursorOpacity
+    const tmm = this.trail?.mm;
+    if (tmm && tmm.inst.length) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const t of tmm.inst) { const h = tmm.size * (Math.abs(Math.cos(t.rot)) + Math.abs(Math.sin(t.rot))) / 2; x0 = Math.min(x0, t.x - h); x1 = Math.max(x1, t.x + h); y0 = Math.min(y0, t.y - h); y1 = Math.max(y1, t.y + h); }
+      const co = Math.min(Math.max(settings.CursorOpacity, 0), 1);
+      list.push({ p: 0, d: dist((x0 + x1) / 2, (y0 + y1) / 2, 0), draw: () => { for (const t of tmm.inst) if (t.a > 0) quad(this.tex.cursor, t.x, t.y, 0, tmm.size, tmm.size, t.a * co, t.rot * 180 / Math.PI); } });
+    }
     if (!OFF.has('hud')) for (const it of hudItems) list.push({ p: it.priority, d: dist(it.o[0], it.o[1], it.o[2]), draw: () => this.drawHudItem(vp, it) });
     list.sort((A, B) => (A.p === B.p ? B.d - A.d : A.p - B.p));
     gl.disable(gl.CULL_FACE);

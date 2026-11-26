@@ -1,6 +1,8 @@
 // Port of scenes/Game.cs + PlayerInputController.cs + PauseMenu.cs (flow only; logic lives in game/Runner.js).
 import { Attempt } from '../game/Attempt.js';
 import { Runner } from '../game/Runner.js';
+import { TrailRenderer } from '../game/TrailRenderer.js';
+import { CURSOR_SIZE } from '../constants.js';
 import { updateCursor } from '../game/CameraLock.js';
 import { Hud } from './Hud.js';
 import { SettingsManager } from '../SettingsManager.js';
@@ -12,7 +14,7 @@ export const STEP_MS = 1000 / 120; // project.godot physics_ticks_per_second=120
 const FIREFOX = /Firefox\//.test(navigator.userAgent);
 export class GameScene {
   constructor(app) {
-    this.app = app; this.active = false; this.paused = false;
+    this.app = app; this.active = false; this.paused = false; this.trail = new TrailRenderer();
     this.hud = new Hud(document.getElementById('hudRoot'), document.getElementById('hudPersp'), app.canvas);
     document.addEventListener('pointermove', (e) => this.onMouseMove(e));
     document.addEventListener('keydown', (e) => this.onKey(e));
@@ -47,6 +49,7 @@ export class GameScene {
     runner.Play(attempt, settings);
     this.app.sound.beginGameplayScope(attempt.Map);         // Runner.Play -> SoundManager.BeginGameplayScope
     this.app.renderer.cursor.rotation = 0;                  // CursorManager.Init: cursorMesh.Transform = Identity
+    this.trail.reset(); this.app.renderer.trail = this.trail;   // fresh TrailRenderer per Game scene
     this.active = true; this.paused = false; this.acc = 0; this.last = performance.now();
     this.showPause(false, true);   // Game.cs: Menu.HideMenu(true)
     this.app.menuCursor?.UpdateVisible(false, false);   // Game.cs: MenuCursor.Instance.UpdateVisible(false, false)
@@ -78,6 +81,8 @@ export class GameScene {
     const ren = this.app.renderer;
     // CursorManager._Process: while Playing, cursorMesh.RotationDegrees += Vector3.Back * (float)CursorRotation * (float)delta (float32)
     if (r.Playing) ren.cursor.rotation = Math.fround(ren.cursor.rotation + Math.fround(Math.fround(this.app.settings.CursorRotation) * Math.fround(dt / 1000)));
+    // CursorManager/TrailRenderer._Process (child of CursorManager, so after its cursor rotation): Rotation.Z = cursor rotation in radians, size = Grid.Init CURSOR_SIZE * CursorScale
+    this.trail.process(dt / 1000, a, r, this.app.settings, Math.fround(ren.cursor.rotation * Math.PI / 180), Math.fround(CURSOR_SIZE * this.app.settings.CursorScale));
     ren.updateSpace(dt / 1000, a.LastHitColour, this.app.settings.SpaceHitEffects);
     this.hud.frame(progress);
     const p2 = pf ? performance.now() : 0;
