@@ -26,11 +26,11 @@
 .mb .fav{position:absolute;right:8px;top:8px;width:24px;height:24px;display:none}
 .mb .fav i{display:block;width:24px;height:24px;-webkit-mask:url(../assets/skin/ui/play/favorite.png) center/100% 100%;mask:url(../assets/skin/ui/play/favorite.png) center/100% 100%}
 .mb .ttl{position:absolute;left:16px;top:8px;right:40px;height:calc(50% - 8px);display:flex;align-items:center;font:500 23px Roboto,sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  -webkit-text-stroke:1px #000;paint-order:stroke fill;text-shadow:3px 1px 0 #000,-1px 1px 0 #000,1px 3px 0 #000,1px -1px 0 #000,2.4px 2.4px 0 #000,-.4px 2.4px 0 #000,2.4px -.4px 0 #000,-.4px -.4px 0 #000}
+  -webkit-text-stroke:.5px #000;paint-order:stroke fill;text-shadow:1px 1px 0 #000,2px 1px 0 #000,0 1px 0 #000,1px 2px 0 #000,1px 0 0 #000,1.7px 1.7px 0 #000,.3px 1.7px 0 #000,1.7px .3px 0 #000,.3px .3px 0 #000}   /* outline 1; shadow_size 4 at (1,1): shadow glyph + 1 px outline */
 .mb .ttl span{overflow:hidden;text-overflow:ellipsis}
 .mb .sepr{position:absolute;left:16px;right:16px;top:50%;height:1px;background:linear-gradient(to right,rgba(255,255,255,.1255),rgba(255,255,255,0))}
 .mb .ext{position:absolute;left:16px;right:8px;top:50%;bottom:8px;display:flex;align-items:center;font:500 18px Roboto,sans-serif;color:#808080;white-space:pre;overflow:hidden;
-  -webkit-text-stroke:2px #000;paint-order:stroke fill}
+  -webkit-text-stroke:1px #000;paint-order:stroke fill}
 .mb .ext>span{white-space:pre}.mb .ext b{font-weight:500}
 .mb button.hit{position:absolute;inset:0;background:none;border:0;padding:0;cursor:pointer;opacity:0;pointer-events:auto}
 
@@ -39,12 +39,8 @@
 #stRow{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;justify-content:flex-end;align-items:center;gap:4px;pointer-events:none}
 #stRow>*{pointer-events:auto}
 /* theme.tres Button: normal black + 2px bottom #c90045, hover #181818 + white, pressed #181818 + white (content shifted 1px), disabled rgba(0,0,0,.235), radius 4, margins 8/6 */
-.tbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:36px;box-sizing:border-box;padding:6px 8px;border:0;border-radius:4px;color:#fff;font:500 16px Roboto,sans-serif;cursor:pointer;--bg:#000;--bd:linear-gradient(to top,#c90045,#000);background:var(--bd) bottom/100% 2px no-repeat,var(--bg)}
+.tbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:4px;height:36px;box-sizing:border-box;padding:6px 8px;color:#fff;font:500 16px Roboto,sans-serif;cursor:pointer}
 .tbtn img{width:18px;height:18px;max-width:18px;display:block}
-.tbtn:hover:not(:disabled){--bg:#181818;--bd:linear-gradient(to top,#fff,#181818)}
-.tbtn:active:not(:disabled),.tbtn.on{--bg:#202020;--bd:linear-gradient(#ccc,#ccc);padding:7px 8px 5px}
-.tbtn:active:hover:not(:disabled),.tbtn.on:hover{--bg:#181818;--bd:linear-gradient(#fff,#fff)}
-.tbtn:disabled{--bg:rgba(0,0,0,.2353);--bd:linear-gradient(transparent,transparent);cursor:default}
 .stSep{width:20px;height:36px;position:relative}.stSep i{position:absolute;left:50%;top:4px;bottom:4px;width:1px;background:rgba(255,255,255,.1255)}
 /* SortMenuButton: Panel anchored at the button's bottom centre, offset_top 4 */
 .tg{position:relative;flex:none}
@@ -61,12 +57,17 @@
 .sPanel input:focus{background:rgba(0,0,0,.8627);border-color:#1f1f1f;padding-left:8px}
 .sPanel input::placeholder{color:rgba(255,255,255,.5)}
 
-/* theme.tres Button styles. border_blend: the 2 px bottom border fades from the border colour (outer edge) to the background (inner edge). */
-.gb{border:0;border-radius:4px;padding:6px 8px;color:#dfdfdf;font:500 16px Roboto,sans-serif;cursor:pointer;--bg:#000;--bd:linear-gradient(to top,#c90045,#000);background:var(--bd) bottom/100% 2px no-repeat,var(--bg)}
-.gb:hover{--bg:#181818;--bd:linear-gradient(to top,#fff,#181818);color:#f2f2f2}
-.gb.on,.gb:active{--bg:#202020;--bd:linear-gradient(#ccc,#ccc);padding:7px 8px 5px;color:#fff}
-.gb.on:hover,.gb:active:hover{--bg:#181818;--bd:linear-gradient(#fff,#fff)}
-.gb:disabled{--bg:rgba(0,0,0,.2353);--bd:linear-gradient(transparent,transparent);cursor:default}
+/* theme.tres Button styles (StyleBoxFlat, 2 px bottom border, radius 4, anti-aliased). The border ring is drawn by ::before inside a 3 px ring mask
+   with the geometry of style_box_flat.cpp: the infill stops 2 px above the bottom; with border_blend the ring fades from the background (2 px up) to the
+   border colour (0.5 px up), without it the border is solid from 1.5 px up with a 1 px AA band into the infill; the last 0.5 px is the outer AA band. */
+.gb,.tbtn{position:relative;isolation:isolate;border:0;border-radius:4px;--bg:#000;--rg:linear-gradient(to top,rgba(201,0,69,.5),#c90045 .5px,#000 2px);background:linear-gradient(var(--bg),var(--bg)) top/100% calc(100% - 2px) no-repeat}
+.gb::before,.tbtn::before,.mi-start::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:4px;border-bottom:3px solid transparent;background:var(--rg) bottom/100% 3px no-repeat border-box;pointer-events:none;
+  -webkit-mask:linear-gradient(#000 0 0) padding-box exclude,linear-gradient(#000 0 0) border-box;mask:linear-gradient(#000 0 0) padding-box exclude,linear-gradient(#000 0 0) border-box;-webkit-mask-composite:xor;mask-composite:exclude}
+.gb{padding:6px 8px;color:#dfdfdf;font:500 16px Roboto,sans-serif;cursor:pointer}
+.gb:hover,.tbtn:hover:not(:disabled){--bg:#181818;--rg:linear-gradient(to top,rgba(255,255,255,.5),#fff .5px,#181818 2px);color:#f2f2f2}
+.gb.on,.gb:active,.tbtn:active:not(:disabled),.tbtn.on{--bg:#202020;--rg:linear-gradient(to top,rgba(204,204,204,.5),#ccc .5px,#ccc 1.5px,#202020 2.5px);padding-top:7px;padding-bottom:5px;color:#fff}
+.gb.on:hover,.gb:active:hover,.tbtn:active:hover:not(:disabled),.tbtn.on:hover{--bg:#181818;--rg:linear-gradient(to top,rgba(255,255,255,.5),#fff .5px,#fff 1.5px,#181818 2.5px)}
+.gb:disabled,.tbtn:disabled{--bg:rgba(0,0,0,.2353);--rg:none;background-size:100% 100%;cursor:default}
 
 /* MapInfo: scenes/main_menu.tscn MapInfo (anchors .05..45%, +8 / top 128 / bottom -80) and prefabs/map_info_container.tscn. --S is the Holder side. */
 #mapInfo{position:absolute;left:calc(5% + 8px);right:55%;top:128px;bottom:80px;color:#fff;font:500 16px Roboto,sans-serif;pointer-events:none}
@@ -75,28 +76,33 @@
 .mi-info{position:absolute;left:0;right:0;top:0;height:calc(var(--S)*.4 - 8px)}
 .mi-act{position:absolute;left:0;right:0;top:calc(var(--S)*.4);bottom:108px;overflow:hidden}
 .mi-bg{position:absolute;inset:0;background:#000000e0;border-radius:4px}
-/* ScrollContainer: content margin 2, mouse_filter stop; theme VScrollBar (4 px track rgba(0,0,0,.86), white grabber rounded on the right) */
-.mi-sc{position:absolute;inset:0;padding:2px;box-sizing:border-box;overflow-x:hidden;overflow-y:auto;pointer-events:auto}
-.mi-sc::-webkit-scrollbar,.mi-main::-webkit-scrollbar,.mi-extra::-webkit-scrollbar{width:4px}
-.mi-sc::-webkit-scrollbar-track,.mi-main::-webkit-scrollbar-track,.mi-extra::-webkit-scrollbar-track{background:rgba(0,0,0,.8627)}
-.mi-sc::-webkit-scrollbar-thumb,.mi-main::-webkit-scrollbar-thumb,.mi-extra::-webkit-scrollbar-thumb{background:#fff;border-radius:0 4px 4px 0}
-.mi-ib{position:relative;display:flex;gap:4px;height:100%;min-height:245px}
+/* ScrollContainer (panel content margin 2) / RichTextLabel scrolling: src/ui/GodotScroll.js. Theme VScrollBar: track rgba(0,0,0,.86), white grabber
+   rounded on the right. HScrollBar: 4 px bottom line rgba(255,255,255,.125), grabber a 4 px white bottom line. */
+.mi-sc{position:absolute;inset:0;overflow:hidden;pointer-events:auto}
+.mi-in{position:absolute;left:2px;top:2px;right:2px;height:calc(100% - 4px)}
+.mi-info .mi-in{min-height:245px}.mi-act .mi-in{min-height:270px}
+.gsb{position:absolute;z-index:1}.gsb i{position:absolute}
+.gsb-v{background:rgba(0,0,0,.8627)}.gsb-v i{left:0;right:0;background:#fff;border-radius:0 4px 4px 0}
+.gsb-h{box-shadow:inset 0 -4px rgba(255,255,255,.1255)}.gsb-h i{top:0;bottom:0;box-shadow:inset 0 -4px #fff}
+.mi-ib{position:relative;display:flex;gap:4px;height:100%}
 .mi-cbg{position:relative;flex:none;height:100%;aspect-ratio:1;background:url(../assets/skin/ui/play/mapinfo_cover_background.png) top left/contain no-repeat}
 .mi-cbg::before{content:"";position:absolute;inset:0;background:var(--dc,#fff);mix-blend-mode:multiply;-webkit-mask:url(../assets/skin/ui/play/mapinfo_cover_background.png) top left/contain no-repeat;mask:url(../assets/skin/ui/play/mapinfo_cover_background.png) top left/contain no-repeat}
 .mi-cov{position:absolute;left:8px;top:8px;width:calc(100% - 16px);height:calc(100% - 16px);object-fit:cover}
 /* ArtistLink: flat Button, bottom centre of the cover, grows up and both ways; Panel behind it rgba(0,0,0,.376) r4; font 18, outline 6 rgba(0,0,0,.784) */
-.mi-al{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:6px 8px;border:0;background:none;white-space:nowrap;cursor:pointer;color:#dfdfdf;font:500 18px Roboto,sans-serif;-webkit-text-stroke:12px rgba(0,0,0,.784);paint-order:stroke fill}
+.mi-al{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);padding:6px 8px;border:0;background:none;white-space:nowrap;cursor:pointer;color:#dfdfdf;font:500 18px Roboto,sans-serif;-webkit-text-stroke:3px rgba(0,0,0,.784);paint-order:stroke fill}
 .mi-al:hover{color:#f2f2f2}.mi-al:active{color:#fff}
 .mi-al i{position:absolute;inset:0;background:rgba(0,0,0,.3765);border-radius:4px;z-index:-1}.mi-al span{position:relative}
 .mi-sub{position:relative;flex:1;min-width:0}
 /* Main: RichTextLabel, outline_size 2 (black), paragraph_separation 4; Extra: 18 px, right/bottom aligned */
-.mi-main{position:absolute;left:8px;top:6px;right:8.4px;height:124px;overflow-y:auto;line-height:normal;-webkit-text-stroke:4px #000;paint-order:stroke fill}
+.mi-main{position:absolute;left:8px;top:6px;right:8.4px;height:124px;overflow:hidden;line-height:normal;-webkit-text-stroke:1px #000;paint-order:stroke fill}
+.mi-main .rt{position:absolute;left:0;right:0;top:0}
 .mi-main p{margin:0 0 4px;font-size:24px}.mi-main .by{font-size:16px;color:#909096}
-.mi-extra{position:absolute;left:8px;right:8.4px;top:138px;bottom:50px;display:flex;flex-direction:column;justify-content:flex-end;text-align:right;font-size:18px;white-space:pre-line;overflow-y:auto}
+.mi-extra{position:absolute;left:8px;right:8.4px;top:138px;bottom:50px;text-align:right;font-size:18px;white-space:pre-line;overflow:hidden}
+.mi-extra .rt{position:absolute;left:0;right:0;bottom:0}.mi-extra.ov .rt{bottom:auto;top:0}   /* vertical_alignment bottom applies only while the text fits */
 .mi-extra .a{color:#ffffff88}.mi-extra .b{color:#ffffff44}
 .mi-btns{position:absolute;left:8px;right:6px;bottom:6px;height:40px;display:flex;justify-content:flex-end;gap:4px}
 .mi-b{height:40px}.mi-b img{width:24px;height:24px;display:block}
-.mi-hs{position:relative;height:100%;min-height:270px}
+.mi-hs{position:relative;height:100%}
 .mi-hs>div{position:absolute}
 .mi-lab{position:absolute;left:0;right:0;top:0;height:32px;line-height:32px;text-align:center;color:rgba(255,255,255,.251)}
 .mi-prev{left:calc(75% + 8px);top:16px;right:16px;bottom:calc(50% + 8px)}
@@ -104,7 +110,8 @@
 .mi-fp{position:relative;height:100%;max-width:100%;aspect-ratio:1;display:grid;grid-template:repeat(3,1fr)/repeat(3,1fr)}.mi-fp i{background:#fff;opacity:0}
 .mi-speed{left:16px;top:calc(50% + 8px);right:calc(50% + 8px);bottom:16px;min-height:32px}
 .mi-play{left:calc(50% + 8px);top:calc(50% + 8px);right:16px;bottom:16px}
-.mi-psc{position:absolute;left:0;right:0;top:32px;bottom:calc(25% + 4px);padding:2px;box-sizing:border-box;overflow:hidden}
+.mi-psc{position:absolute;left:0;right:0;top:32px;bottom:calc(25% + 4px);overflow:hidden}
+.mi-pin{position:absolute;left:2px;top:2px;right:2px;bottom:2px;min-width:256px;min-height:44px}   /* HBox minimum: 5 x 48 + 4 x 4; button minimum height 44 */
 .mi-pre{height:100%;display:flex;justify-content:center;align-items:center;gap:4px}
 /* SpeedPresetButton in an AspectRatioContainer: square of min(48, height), never under the button's 48x44 minimum */
 .mi-pb{flex:none;width:48px;height:max(44px,min(48px,100%));display:flex;align-items:center;justify-content:center}.mi-pb img{width:32px;height:32px;display:block}
@@ -116,12 +123,13 @@
 .mi-ed{position:absolute;right:0;width:84px;top:75%;bottom:0;box-sizing:border-box;padding:4px 8px;background:rgba(0,0,0,.8627);border:1px solid #1f1f1f;border-radius:4px;color:#dfdfdf;caret-color:#f2f2f2;font:500 16px Roboto,sans-serif;text-align:center;outline:none}
 .mi-ed:focus{border-color:#c90045}.mi-ed::placeholder{color:rgba(223,223,223,.6)}
 /* START: own styles with expand_margin 16 left/right; content margins 6 top/bottom only; icon on the right */
-.mi-start{position:absolute;left:10%;right:10%;top:48px;bottom:calc(25% + 24px);padding:6px 0;border:0;background:none;color:#fff;font:500 30px Roboto,sans-serif;cursor:pointer;--bg:#000;--bd:linear-gradient(to top,#c90045,#000)}
-.mi-start::before{content:"";position:absolute;inset:0 -16px;border-radius:4px;background:var(--bd) bottom/100% 2px no-repeat,var(--bg);z-index:-1}
-.mi-start{isolation:isolate}
-.mi-start:hover{--bg:#181818;--bd:linear-gradient(to top,#c90045,#181818)}
-.mi-start:active{--bg:#202020;--bd:linear-gradient(#ccc,#ccc)}
-.mi-start:active:hover{--bg:#181818;--bd:linear-gradient(#fff,#fff)}
+.mi-start{position:absolute;left:10%;right:10%;top:48px;bottom:calc(25% + 24px);padding:6px 0;border:0;background:none;isolation:isolate;color:#fff;font:500 30px Roboto,sans-serif;cursor:pointer;
+  --bg:#000;--rg:linear-gradient(to top,rgba(201,0,69,.5),#c90045 .5px,#000 2px)}
+.mi-start::before{content:"";position:absolute;inset:0 -16px;z-index:-1;border-radius:4px;background:linear-gradient(var(--bg),var(--bg)) top/100% calc(100% - 2px) no-repeat}
+.mi-start::after{inset:0 -16px}
+.mi-start:hover{--bg:#181818;--rg:linear-gradient(to top,rgba(201,0,69,.5),#c90045 .5px,#181818 2px)}
+.mi-start:active{--bg:#202020;--rg:linear-gradient(to top,rgba(204,204,204,.5),#ccc .5px,#ccc 1.5px,#202020 2.5px)}
+.mi-start:active:hover{--bg:#181818;--rg:linear-gradient(to top,rgba(255,255,255,.5),#fff .5px,#fff 1.5px,#181818 2.5px)}
 .mi-start span{position:absolute;left:0;right:36px;top:50%;transform:translateY(-50%);text-align:center;white-space:nowrap}
 .mi-start img{position:absolute;right:0;top:50%;width:32px;height:32px;transform:translateY(-50%)}
 .mi-sep{position:absolute;width:1px;background:rgba(255,255,255,.0784)}

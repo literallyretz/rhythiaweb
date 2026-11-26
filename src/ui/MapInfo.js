@@ -7,6 +7,7 @@ import { notify } from './Toast.js';
 import { radial } from './MapList.js';
 import { OptionPopup } from './OptionPopup.js';
 import { binarySearch } from '../util/misc.js';
+import { GodotScroll } from './GodotScroll.js';
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const formatTime = (seconds) => { const m = Math.floor(Math.abs(seconds) / 60), s = Math.floor(Math.abs(seconds) % 60); return `${seconds < 0 ? '-' : ''}${m}:${String(s).padStart(2, '0')}`; };
@@ -67,21 +68,29 @@ class MapInfoContainer {
     this.alpha = 0; this.posX = 0; this.posY = 0; this.scale = 1; this.infoOff = 0; this.actOff = 0;   // Modulate = (1,1,1,0) in _Ready
     const el = this.el = document.createElement('div'); el.className = 'mi-con'; el._c = this;
     el.innerHTML = `
-      <div class="mi-info"><div class="mi-bg"></div><div class="mi-sc"><div class="mi-ib">
+      <div class="mi-info"><div class="mi-bg"></div><div class="mi-sc"><div class="mi-in"><div class="mi-ib">
         <div class="mi-cbg"><img class="mi-cov" alt=""><button class="mi-al"><i></i><span></span></button></div>
-        <div class="mi-sub"><div class="mi-main"></div><div class="mi-extra"></div>
+        <div class="mi-sub"><div class="mi-main"><div class="rt"></div></div><div class="mi-extra"><div class="rt"></div></div>
           <div class="mi-btns"><button class="gb mi-b mi-exp" title="Exports map into a .phxm file to share easily"><img src="assets/skin/ui/buttons/export.png" alt=""></button><button class="gb mi-b mi-fav"><img alt=""></button><button class="gb mi-b mi-del" title="Delete"><img src="assets/skin/ui/buttons/delete.png" alt=""></button></div></div>
-      </div></div><div class="mi-ol"></div></div>
-      <div class="mi-act"><div class="mi-bg"></div><div class="mi-sc"><div class="mi-hs">
+      </div></div></div><div class="mi-ol"></div></div>
+      <div class="mi-act"><div class="mi-bg"></div><div class="mi-sc"><div class="mi-in"><div class="mi-hs">
         <div class="mi-prev"><div class="mi-lab">Preview</div><div class="mi-pa"><div class="mi-fp"></div></div></div>
-        <div class="mi-speed"><div class="mi-lab">Speed</div><div class="mi-psc"><div class="mi-pre"></div></div><div class="mi-sl mi-ssl"></div><input class="mi-ed mi-sed" spellcheck="false" autocomplete="off" placeholder="100"></div>
+        <div class="mi-speed"><div class="mi-lab">Speed</div><div class="mi-psc"><div class="mi-pin"><div class="mi-pre"></div></div></div><div class="mi-sl mi-ssl"></div><input class="mi-ed mi-sed" spellcheck="false" autocomplete="off" placeholder="100"></div>
         <div class="mi-play"><div class="mi-lab">Play</div><div class="mi-sl mi-fsl"></div><input class="mi-ed mi-fed" placeholder="0:00" spellcheck="false" autocomplete="off"><button class="mi-start"><span>START</span><img src="assets/skin/ui/buttons/play.png" alt=""></button></div>
         <div class="mi-sep" style="left:50%;top:16px;bottom:calc(50% + 16px)"></div><div class="mi-sep" style="left:75%;top:16px;bottom:calc(50% + 16px)"></div>
         <div class="mi-sep" style="left:50%;top:calc(50% + 16px);bottom:16px"></div><div class="mi-sep" style="left:16px;right:16px;top:50%;width:auto;height:1px"></div>
-      </div></div><div class="mi-ol"></div></div>`;
+      </div></div></div><div class="mi-ol"></div></div>`;
     const q = (s) => el.querySelector(s);
     this.info = q('.mi-info'); this.actions = q('.mi-act'); this.ols = [...el.querySelectorAll('.mi-ol')];
-    this.coverBackground = q('.mi-cbg'); this.cover = q('.mi-cov'); this.mainLabel = q('.mi-main'); this.extraLabel = q('.mi-extra');
+    this.coverBackground = q('.mi-cbg'); this.cover = q('.mi-cov'); this.mainLabel = q('.mi-main .rt'); this.extraLabel = q('.mi-extra .rt');
+    // ScrollContainers (panel content margin 2; Info and Actions: mouse_force_pass_scroll_events = false) and the two RichTextLabels
+    for (const sc of el.querySelectorAll('.mi-sc')) { const inn = sc.firstChild; new GodotScroll(sc, inn, { margin: 2, stopAlways: true, onLayout: (w) => { inn.style.right = `${2 + w}px`; } }); }
+    const psc = q('.mi-psc'), pin = psc.firstChild;
+    new GodotScroll(psc, pin, { margin: 2, onLayout: (w) => { pin.style.right = `${2 + w}px`; } });
+    new GodotScroll(psc, pin, { axis: 'h', margin: 2, onLayout: (h) => { pin.style.bottom = `${2 + h}px`; } });
+    for (const host of [q('.mi-main'), q('.mi-extra')]) {
+      const rt = host.firstChild; new GodotScroll(host, rt, { divisor: 16, onLayout: (w) => { rt.style.right = `${w}px`; host.classList.toggle('ov', w > 0); } });
+    }
     this.favoriteButton = q('.mi-fav'); this.startButton = q('.mi-start'); this.artistLink = q('.mi-al');
 
     // ArtistLink (LinkPopupButton)

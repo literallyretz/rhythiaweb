@@ -68,7 +68,7 @@
 #volume,#offsetPanel{position:fixed;left:50%;margin-left:-128px;bottom:32px;width:256px;height:6px;z-index:61;pointer-events:none}
 #volume .vbg{position:absolute;inset:-2px;background:rgba(0,0,0,.7686)}
 #volume .vmain{position:absolute;left:0;top:0;height:100%;background:#fff;width:0}
-.plabel{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;font:600 16px "OpenSansGodot",sans-serif;color:#dfdfdf;-webkit-text-stroke:5px rgba(0,0,0,.502);paint-order:stroke fill;white-space:nowrap}
+.plabel{position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;font:600 16px "OpenSansGodot",sans-serif;color:#dfdfdf;-webkit-text-stroke:2.5px rgba(0,0,0,.502);paint-order:stroke fill;white-space:nowrap}
 #fps{position:fixed;left:6px;bottom:4px;z-index:62;font:600 16px "OpenSansGodot",sans-serif;color:#dfdfdf;pointer-events:none;line-height:23px;isolation:isolate}
 #fps::before{content:"";position:absolute;left:-2px;right:-2px;top:0;bottom:0;background:rgba(0,0,0,.7686);z-index:-1}
 
@@ -78,8 +78,8 @@
 #jSpectrum{position:absolute;left:8px;top:8px;right:8px;bottom:8px;width:calc(100% - 16px);height:56px;pointer-events:none}
 #jTitle{position:absolute;right:calc(50% + 60px);top:50%;transform:translateY(-50%);height:19px;pointer-events:auto}
 #jTitleBg{position:absolute;inset:0;background:rgba(0,0,0,.3764706);border-radius:4px}
-#jTitleText{position:relative;display:block;white-space:nowrap;text-align:right;font:400 17px/19px Ubuntu,sans-serif;color:#fff;opacity:.74509805;-webkit-text-stroke:2px #000;paint-order:stroke fill}   /* LabelSettings: outline 1 black */
-#jTitleText::before{content:attr(data-t);position:absolute;right:-1px;top:1px;z-index:-1;-webkit-text-stroke:12px rgba(0,0,0,.502);color:transparent;stroke-linejoin:round}   /* shadow_size 6, offset (1,1) */
+#jTitleText{position:relative;display:block;white-space:nowrap;text-align:right;font:400 17px/19px Ubuntu,sans-serif;color:#fff;opacity:.74509805;-webkit-text-stroke:.5px #000;paint-order:stroke fill}   /* LabelSettings: outline 1 black; CSS stroke = outline_size / 2 */
+#jTitleText::before{content:attr(data-t);position:absolute;right:-1px;top:1px;z-index:-1;-webkit-text-stroke:3px rgba(0,0,0,.502);color:rgba(0,0,0,.502);stroke-linejoin:round}   /* shadow: glyph + outline 6 (stroke 3 px), offset (1,1) */
 #jTitle.hot #jTitleText{opacity:1}
 #jGoTo{position:absolute;inset:0;background:none;border:0;cursor:pointer}
 #jGoTo:disabled{cursor:default}
