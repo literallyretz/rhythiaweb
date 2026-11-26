@@ -1,3 +1,4 @@
+import { lx, lrect } from './UIScale.js';
 // Godot ScrollContainer / RichTextLabel scrolling with the theme's scroll bars (scene/gui/scroll_container.cpp, rich_text_label.cpp, scroll_bar.cpp).
 // The content is moved with a transform; the browser's own scrollbar is not used.
 //   host: the clipping box. inner: the content (its size is the child's size, never below its minimum). margin: the panel style's content margin.
@@ -25,7 +26,7 @@ export class GodotScroll {
       if (stopAlways || this.value !== before) e.stopPropagation();
     });
     let drag = null;   // ScrollBar.gui_input: click before/after the grabber pages, the grabber drags
-    const pos = (e) => { const r = bar.getBoundingClientRect(); return (axis === 'v' ? e.clientY - r.top : e.clientX - r.left) - this.lead; };
+    const pos = (e) => { const r = lrect(bar); return (axis === 'v' ? lx(e.clientY) - r.top : lx(e.clientX) - r.left) - this.lead; };
     bar.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return; e.stopPropagation(); e.preventDefault();
       const ofs = pos(e), area = this.area(), gOfs = area * this.ratio(), gSize = this.page / this.max * area;
