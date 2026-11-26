@@ -64,7 +64,7 @@ async function boot() {
     Object.defineProperty(app.sound, 'lobbySpeed', { get: () => Lobby.Speed });                                  // Lobby.Speed
   });
   step('game renderer', async () => { app.renderer = new GameRenderer(app.canvas); await app.renderer.load('assets/'); if (app.noteMeshText) app.renderer.setNoteMesh(app.noteMeshText); });
-  step('perf overlay', () => { app.perf = createPerf(app.renderer.gl, app.canvas); });
+  step('perf overlay', () => { app.perf = createPerf(app.renderer.gl, app.canvas, { title: 'GAME', extra: (a) => `notes ${a.notes}  ` }); });
   step('HUD textures', () => Promise.all(['cursor', 'health', 'health_background', 'hits', 'misses', 'miss_feedback', 'panel_left_background', 'panel_right_background', 'progress', 'progress_background']
     .map((n) => { const i = new Image(); i.src = `assets/skin/game/${n}.png`; return i.decode(); })));
   // MapManager._Ready -> MapCache.Load(true). The bundled map is imported once on first run, like any other map (it stands in for a file already in the maps folder)
@@ -88,7 +88,7 @@ async function boot() {
     for (const m of MapManager.Maps) await app.ensureAudio(m);
     if (map?.CoverBuffer) { app.coverBlob = new Blob([map.CoverBuffer], { type: 'image/png' }); app.coverURL = URL.createObjectURL(app.coverBlob); }
   });
-  step('menu background', async () => { app.menuBg = new MenuBackground($('menuCanvas')); if (app.coverBlob) await app.menuBg.setCover(app.coverBlob); });
+  step('menu background', async () => { app.menuBg = new MenuBackground($('menuCanvas')); app.menuPerf = createPerf(app.menuBg.gl, app.menuBg.canvas, { title: 'MENU (home, play)', labels: ['tick', '-', 'background'], extra: () => `dom nodes ${document.getElementsByTagName('*').length}  ` }); if (app.coverBlob) await app.menuBg.setCover(app.coverBlob); });
 
   await loading.setSplash('assets/textures/boot_splash.png');
   await document.fonts.load('400 16px Ubuntu');
@@ -120,7 +120,7 @@ async function boot() {
   Lobby.init(); app.mainMenu = new MainMenu(app);                                   // Lobby._Ready, MainMenu._Ready
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
   let lastT = performance.now();
-  const tick = (now) => { const dt = Math.max(0, (now - lastT) / 1000); lastT = now; if (app.menuRunning) app.mainMenu.MapInfo.Process(dt); app.sound.process(); app.jukeboxPanel.process(now); requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
+  const tick = (now) => { const dt = Math.max(0, (now - lastT) / 1000); lastT = now; const q = app.menuPerf ? performance.now() : 0; if (app.menuRunning) app.mainMenu.MapInfo.Process(dt); app.sound.process(); app.jukeboxPanel.process(now); if (q) app.tickMs = performance.now() - q; requestAnimationFrame(tick); };   // _Process of SoundManager / JukeboxPanel
   requestAnimationFrame(tick);
   app.sound.resume().catch(() => {}); app.menuRunning = true; app.mainMenu.MapInfo.ApplyPendingSelection(); app.sound.start(); app.sound_ready();   // MapsInitialized -> start()
   await loading.exit();
@@ -144,7 +144,7 @@ app.toMenu = async (withFade) => {
   app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);
-  const loop = () => { if (!app.menuRunning) return; app.menuBg.frame(); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+  const loop = () => { if (!app.menuRunning) return; const pf = app.menuPerf; pf?.begin(); const t = pf ? performance.now() : 0; app.menuBg.frame(); pf?.end(app.tickMs || 0, 0, performance.now() - t, 0); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
   await fade(0);
 };
 
