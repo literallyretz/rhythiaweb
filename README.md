@@ -1,5 +1,7 @@
 # Rhythia Web – browser port (minimal playable + settings, jukebox)
 
+> **Unofficial fan project.** Rhythia Web is a fan-made browser port of the Rhythia client. It is not affiliated with, endorsed by, or maintained by the Rhythia developers. The original game is at https://github.com/Rhythia/Client (AGPL-3.0); this port is a derivative work under the same licence (see LICENSE.original). Bugs here are not theirs, so please report them to this repository, not to the Rhythia team.
+
 Source-faithful JS/WebGL2/Web Audio translation of the Rhythia Godot 4 C# client (AGPL-3.0, see LICENSE.original). Godot is not used at runtime. Where the source can be translated it is; anything else is listed under "Known deviations".
 
 ## Run / embed

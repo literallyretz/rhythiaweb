@@ -100,3 +100,6 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 
 #fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50}
 #fatal{position:absolute;inset:0;z-index:99;background:#0b0b0b;padding:48px;font-size:16px;line-height:1.6;white-space:pre-wrap;color:#ffd8e6}
+
+#disclaimer{position:absolute;left:12px;bottom:104px;margin:0;max-width:min(560px,60vw);font:12px/16px "Roboto",sans-serif;color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000}
+#disclaimer a{color:rgba(255,255,255,.8)}#disclaimer a:hover{color:#fff}
