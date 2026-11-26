@@ -9,7 +9,7 @@ Rhythia Web is a JS / WebGL2 / Web Audio translation of the Rhythia Godot 4 C# c
 - Embed with `<iframe src="…/index.html" allow="autoplay; fullscreen">`. Pointer lock needs a click first (the PLAY button).
 - Another map: `index.html?map=assets/maps/other.sspm` (SSPM v1/v2).
 - Controls: mouse to aim, Esc to pause, Space to skip, ` to restart. Ctrl+O opens settings.
-- URL flags (not in the original): `?scale=0.75` renders the 3D view at 75% resolution, `?perf=1` shows a per-frame cost overlay in the game and on the home and play screens.
+- URL flags (not in the original): `?scale=0.75` renders the 3D view at 75% resolution, `?perf=1` shows a per-frame cost overlay in the game and on the home and play screens. `?off=blur,mask,blend,stroke,outline,mapinfo,bg` turns those menu effects off to see what each costs (`prepass,notes,grid,hud` do the same in the game).
 
 ## Layout
 `src/game` Runner, Attempt, CameraLock · `src/map` notes, the map parsers and the map store · `src/audio` SoundManager · `src/render` the WebGL2 game view and menu background · `src/scenes` Loading, Hud, Game, Results, Settings · `src/ui` menu pieces · `tools` helper and test scripts · `assets` the original's files plus the bundled map.

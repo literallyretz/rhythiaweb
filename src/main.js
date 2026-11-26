@@ -4,6 +4,7 @@ import { SettingsManager } from './SettingsManager.js';
 import { SettingsMenu } from './scenes/SettingsMenu.js';
 import { initPopups } from './ui/Popups.js';
 import { createPerf } from './util/perf.js';
+import { offBackground } from './util/debugOff.js';
 import { JukeboxPanel } from './ui/JukeboxPanel.js';
 import { MenuCursor } from './ui/MenuCursor.js';
 import { VERSION } from './constants.js';
@@ -144,7 +145,7 @@ app.toMenu = async (withFade) => {
   app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);
-  const loop = () => { if (!app.menuRunning) return; const pf = app.menuPerf; pf?.begin(); const t = pf ? performance.now() : 0; app.menuBg.frame(); pf?.end(app.tickMs || 0, 0, performance.now() - t, 0); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+  const loop = () => { if (!app.menuRunning) return; const pf = app.menuPerf; pf?.begin(); const t = pf ? performance.now() : 0; if (!offBackground) app.menuBg.frame(); pf?.end(app.tickMs || 0, 0, performance.now() - t, 0); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
   await fade(0);
 };
 
