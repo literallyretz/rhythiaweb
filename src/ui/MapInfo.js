@@ -4,6 +4,7 @@ import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
 import { notify } from './Toast.js';
+import { radial } from './MapList.js';
 import { binarySearch } from '../util/misc.js';
 
 const $ = (id) => document.getElementById(id);
@@ -34,14 +35,16 @@ export class MapInfo {
     this.app = app; this.list = list; this.Map = null; this.container = null;
     const root = this.root = $('mapInfo');
     root.innerHTML = `<div class="mi-hold"><div class="mi-con" style="opacity:0">
-      <div class="mi-info"><div class="mi-cbg"><img class="mi-cov" alt=""></div>
+      <div class="mi-info"><div class="mi-ib"><div class="mi-cbg"><img class="mi-cov" alt=""></div>
         <div class="mi-sub"><div class="mi-main"></div><div class="mi-extra"></div>
-          <div class="mi-btns"><button class="mi-b" id="miExport" title="Export"><img src="assets/skin/ui/buttons/export.png" alt=""></button><button class="mi-b" id="miFav"><img alt=""></button><button class="mi-b" id="miDel" title="Delete"><img src="assets/skin/ui/buttons/delete.png" alt=""></button></div></div></div>
-      <div class="mi-act">
-        <div class="mi-prev"><div class="mi-lab">Preview</div><div class="mi-fp"></div></div>
-        <div class="mi-speed"><div class="mi-lab">Speed</div><div class="mi-pre"></div><div class="mi-row"><div id="miSpeedSl"></div><input id="miSpeedEd" class="mi-ed" spellcheck="false"></div></div>
-        <div class="mi-play"><div class="mi-lab">Play</div><div class="mi-row"><div id="miSfSl"></div><input id="miSfEd" class="mi-ed" placeholder="0:00" spellcheck="false"></div><button id="miStart" class="mi-start"><img src="assets/skin/ui/buttons/play.png" alt=""><span>START</span></button></div>
-      </div></div></div>`;
+          <div class="mi-btns"><button class="mi-b" id="miExport" title="Exports map into a .phxm file to share easily"><img src="assets/skin/ui/buttons/export.png" alt=""></button><button class="mi-b" id="miFav"><img alt=""></button><button class="mi-b" id="miDel" title="Delete"><img src="assets/skin/ui/buttons/delete.png" alt=""></button></div></div></div><div class="mi-ol"></div></div>
+      <div class="mi-act"><div class="mi-hs-wrap"><div class="mi-hs">
+        <div class="mi-prev"><div class="mi-lab">Preview</div><div class="mi-pa"><div class="mi-fp"></div></div></div>
+        <div class="mi-speed"><div class="mi-lab">Speed</div><div class="mi-pre"></div><div class="mi-sl" id="miSpeedSl"></div><input id="miSpeedEd" class="mi-ed" spellcheck="false" placeholder="100"></div>
+        <div class="mi-play"><div class="mi-lab">Play</div><button id="miStart" class="mi-start"><span>START</span><img src="assets/skin/ui/buttons/play.png" alt=""></button><div class="mi-sl" id="miSfSl"></div><input id="miSfEd" class="mi-ed" placeholder="0:00" spellcheck="false"></div>
+        <div class="mi-sep" style="left:50%;top:16px;width:1px;bottom:calc(50% + 16px)"></div><div class="mi-sep" style="left:75%;top:16px;width:1px;bottom:calc(50% + 16px)"></div>
+        <div class="mi-sep" style="left:50%;top:calc(50% + 16px);width:1px;bottom:16px"></div><div class="mi-sep" style="left:16px;right:16px;top:50%;height:1px"></div>
+      </div></div><div class="mi-ol"></div></div></div></div>`;
     this.hold = root.querySelector('.mi-hold'); this.con = root.querySelector('.mi-con');
     const q = (s) => root.querySelector(s);
     this.cbg = q('.mi-cbg'); this.cov = q('.mi-cov'); this.main = q('.mi-main'); this.extra = q('.mi-extra');
@@ -89,7 +92,7 @@ export class MapInfo {
     Lobby.on('StartFromChanged', (sf) => {
       const length = this.Map ? this.Map.Length : 1;
       sfSl.set(sf / length); sfEd.value = formatTime(sf / 1000);
-      this.start.lastChild.textContent = `START${sf > 0 ? ` (${sfEd.value})` : ''}`;
+      this.start.firstChild.textContent = `START${sf > 0 ? ` (${sfEd.value})` : ''}`;
     });
     const applyStartFrom = (input = null, seek = true) => {
       const Map = this.Map; if (!Map) return;
@@ -108,6 +111,8 @@ export class MapInfo {
     sfSl.onChange = (v) => applyStartFrom((Math.round(v * this.Map.Length) / 1000).toFixed(2), false);
     sfSl.onDragEnd = (changed) => { if (changed) applyStartFrom(); };
     this.start.onclick = () => app.playMap(this.Map);
+    this.mouse = [-10000, 0]; this.ols = [...root.querySelectorAll('.mi-ol')];
+    window.addEventListener('mousemove', (e) => { this.mouse = [e.clientX, e.clientY]; });
     app.mapInfo = this;
   }
   _fav() { const m = this.Map; this.favBtn.title = m.Favorite ? 'Unfavorite' : 'Favorite'; this.favBtn.firstChild.src = `assets/skin/ui/buttons/${m.Favorite ? 'unfavorite' : 'favorite'}.png`; }
@@ -142,6 +147,10 @@ export class MapInfo {
   }
   _pvSeek(ms) { if (!this.pvMap) return; this.pvTime = ms; this.lastPassedNote = binarySearch(this.noteTimestamps, ms); }
   Process(delta) {
+    if (this.Map) for (const o of this.ols) {   // outline.gdshader on Info and Actions: outline colour + cursor light (cursor_position = viewport mouse)
+      const r = o.getBoundingClientRect();
+      o.style.background = `${radial(this.mouse[0] - r.left, this.mouse[1] - r.top, '38,38,38', (t) => t.toFixed(3))},#0d0d0d`;
+    }
     const map = this.pvMap; if (!map) return;
     const k = Math.min(1, delta * 6);
     for (let i = 0; i < 9; i++) { this.alpha[i] *= 1 - k; this.tiles[i].style.opacity = this.alpha[i] * 5; }

@@ -11,7 +11,7 @@ const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const formatTime = (seconds) => { const m = Math.floor(Math.abs(seconds) / 60), s = Math.floor(Math.abs(seconds) % 60); return `${seconds < 0 ? '-' : ''}${m}:${String(s).padStart(2, '0')}`; };   // Util.String.FormatTime
 const LIGHT = '201,0,69', CURSOR_LIGHT = '38,38,38', OUTLINE = '#0d0d0d', GLOW = 350;
 // outline.gdshader: outline colour, mixed towards cursor_light_color (linear falloff), then towards light_color by `fill` (horizontal) and by the selection light (squared falloff)
-const radial = (x, y, rgb, f) => `radial-gradient(circle at ${x}px ${y}px,${[0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1].map((t) => `rgba(${rgb},${f(1 - t)}) ${(t * GLOW).toFixed(1)}px`).join(',')},rgba(${rgb},0) ${GLOW}px)`;
+export const radial = (x, y, rgb, f) => `radial-gradient(circle at ${x}px ${y}px,${[0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1].map((t) => `rgba(${rgb},${f(1 - t)}) ${(t * GLOW).toFixed(1)}px`).join(',')},rgba(${rgb},0) ${GLOW}px)`;
 
 class MapButton {   // MapButton + MapButtonWide
   constructor(list) {
