@@ -25,11 +25,18 @@ export function hexColor(hex) { // "ff0059" -> [r,g,b] 0..1
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 }
 
-// Util.Misc.ParseColor(hex, fallback) -> Color.FromHtml: "#" optional; rgb / rgba / rrggbb / rrggbbaa; anything else falls back (white here) -> [r, g, b] 0..1
+// Util.Misc.ParseColor(hex, fallback): blank -> fallback; Trim, prepend '#' if missing, Color.FromHtml; an exception -> fallback. Returns [r, g, b] 0..1.
+// Color.FromHtml (GodotSharp Color.cs): '#' stripped; 3/4 digits = one hex digit per channel /15, 6/8 digits = two /255; other lengths throw. A channel
+// < 0 throws, but ParseCol8 = hi*16 + lo, so a bad low digit after a non-zero high digit gives hi*16 - 1 and is accepted (kept, as in the engine).
 export function parseColor(hex, fallback = [1, 1, 1]) {
   if (hex == null || hex.trim() === '') return fallback;
-  let h = hex.trim().replace(/^#/, '');
-  if (!/^([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(h)) return fallback;
-  if (h.length <= 4) h = [...h].map((c) => c + c).join('');
-  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  let h = hex.trim(); if (!h.startsWith('#')) h = '#' + h;
+  h = h.slice(1);
+  const c4 = (i) => { const k = '0123456789abcdef'.indexOf(h[i]?.toLowerCase()); return k; }, c8 = (i) => c4(i) * 16 + c4(i + 1);
+  let ch;
+  if (h.length === 3 || h.length === 4) ch = [0, 1, 2].map((i) => c4(i) / 15);
+  else if (h.length === 6 || h.length === 8) ch = [0, 2, 4].map((i) => c8(i) / 255);
+  else return fallback;
+  if (h.length === 4 && c4(3) < 0) return fallback; if (h.length === 8 && c8(6) < 0) return fallback;   // alpha part checked too
+  return ch.some((v) => v < 0) ? fallback : ch;
 }
