@@ -27,7 +27,7 @@ const lineMetrics = (font) => { _m.font = font; const m = _m.measureText('Hg'); 
 const drawLine = (g, text, font, fill, x, cy, align, stroke) => { // (x, cy): anchor x per alignment, vertical centre of the line box
   const { asc, desc } = lineMetrics(font); g.font = font; g.textBaseline = 'alphabetic'; g.textAlign = align;
   const by = cy - (asc + desc) / 2 + asc;
-  if (stroke) { g.lineWidth = stroke.w * 2; g.lineJoin = 'round'; g.strokeStyle = stroke.color; g.strokeText(text, x, by); } // FT_Glyph_Stroke: centred stroke, radius = outline_size
+  if (stroke) { g.lineWidth = stroke.w / 2; g.lineJoin = 'round'; g.strokeStyle = stroke.color; g.strokeText(text, x, by); } // text_server_adv: FT_Stroker_Set(size.y * 16) in 26.6 = outline_size/4 px radius; FT_Glyph_Stroke is centred, so width = outline_size/2
   if (fill) { g.fillStyle = fill; g.fillText(text, x, by); }
 };
 const lerp = (a, b, t) => a + (b - a) * t;
