@@ -7,15 +7,15 @@ import { HitResult } from '../map/Note.js';
 const PLANE_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec2 aUV;
 uniform mat4 uVP; uniform mat4 uView; uniform vec2 uUvOff; uniform float uUvScale;
-out vec2 vUV; out float vDist;
-void main(){ vec4 vp = uView * vec4(aPos,1.0); vDist = length(vp.xyz); vUV = aUV * uUvScale + uUvOff; gl_Position = uVP * vec4(aPos,1.0); }`;
+out vec2 vUV; out vec3 vViewP;   // view-space position; fog_process uses length(vertex) per fragment
+void main(){ vec4 vp = uView * vec4(aPos,1.0); vViewP = vp.xyz; vUV = aUV * uUvScale + uUvOff; gl_Position = uVP * vec4(aPos,1.0); }`;
 const PLANE_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR}
-in vec2 vUV; in float vDist; uniform sampler2D uTex; uniform vec3 uTint; uniform vec3 uFog;
+in vec2 vUV; in vec3 vViewP; uniform sampler2D uTex; uniform vec3 uTint; uniform vec3 uFog;
 uniform float uFogBegin, uFogEnd, uFogCurve, uFogDensity; out vec4 o;
 void main(){
   vec3 c = texture(uTex, vUV).rgb * srgb2lin(uTint);
-  float f = pow(clamp((vDist - uFogBegin)/(uFogEnd - uFogBegin), 0.0, 1.0), uFogCurve) * uFogDensity;
+  float f = pow(smoothstep(uFogBegin, uFogEnd, length(vViewP)), uFogCurve) * uFogDensity;
   c = mix(c, srgb2lin(uFog), clamp(f,0.0,1.0));
   o = vec4(c, 1.0);
 }`;
@@ -27,7 +27,7 @@ const QUAD_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR}
 in vec2 vUV; in vec3 vView; uniform sampler2D uTex; uniform float uAlpha; uniform float uFogOn; uniform vec3 uFog; uniform float uFogBegin, uFogEnd, uFogCurve, uFogDensity; out vec4 o;   // uFogOn: material without disable_fog
 void main(){ vec4 t = texture(uTex, vUV); vec3 c = t.rgb;
-  if (uFogOn > 0.5) { float f = pow(clamp((length(vView) - uFogBegin)/(uFogEnd - uFogBegin), 0.0, 1.0), uFogCurve) * uFogDensity; c = mix(c, srgb2lin(uFog), clamp(f, 0.0, 1.0)); }
+  if (uFogOn > 0.5) { float f = pow(smoothstep(uFogBegin, uFogEnd, length(vView)), uFogCurve) * uFogDensity; c = mix(c, srgb2lin(uFog), clamp(f, 0.0, 1.0)); }
   o = vec4(c, t.a * uAlpha); }`;
 const NOTE_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 iPos; layout(location=2) in vec4 iColor;
