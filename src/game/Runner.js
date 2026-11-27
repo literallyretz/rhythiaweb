@@ -1,9 +1,9 @@
 // Port of scripts/game/Runner.cs (gameplay loop, object processing, scoring, health, fail/stop).
-// Godot signals -> a tiny emitter. Sections that belong to replays, autoplay, modifiers, stats
-// persistence and leaderboards are left out on purpose (outside the minimal scope).
+// Godot signals -> a tiny emitter. Sections that belong to replays, stats persistence and leaderboards are left out (not ported yet).
 import { HitResult } from '../map/Note.js';
 import { BREAK_TIME } from '../constants.js';
 import { binarySearch, fround, toInt } from '../util/misc.js';
+import { AutoplayHandler } from './AutoplayHandler.js';
 
 export class Runner {
   constructor(sound) {
@@ -22,6 +22,8 @@ export class Runner {
     this.lastHitScore = 0;
     this._handlers = {};
     this.onStop = null; // SceneManager.Load("results") hook
+    this.autoplayEnabled = false; this.autoplayHandler = null; this.hitResultProgressOverride = null;
+    this.updateAutoplayCursor = null;   // CursorManager.UpdateAutoplayCursor (set by the Game scene)
   }
   on(name, fn) { (this._handlers[name] ??= []).push(fn); }
   off(name, fn) { this._handlers[name] = (this._handlers[name] ?? []).filter((f) => f !== fn); }
@@ -43,6 +45,11 @@ export class Runner {
       } else if (Math.abs(song.pitchScale - this.Speed) > 1e-5) {
         song.pitchScale = this.Speed;
       }
+    }
+
+    if (this.autoplayEnabled) {
+      this.updateAutoplayCursor?.(this.autoplayHandler.GetCursorPosition(a.Progress));
+      this.processAutoplayHits();
     }
 
     // Song state check
@@ -112,6 +119,18 @@ export class Runner {
     this.noteTimestamps = attempt.Objects.Note.map((n) => n.Millisecond);
     if (!this._connected) { this._connected = true; this.on('hitResultChanged', (i, r) => this.onHitResultChanged(i, r)); }
     this.emit('attemptStatsUpdated', attempt);
+    for (const mod of attempt.Modifiers) {   // map and render modifiers apply from the start (HudManager.DisplayModifier -> 'displayModifier')
+      mod.Active = false;
+      if (mod.map || mod.render) {
+        mod.Activate(attempt); this.emit('displayModifier', mod);
+        if (mod.map) mod.ModifyMap(attempt.Map, attempt);
+      }
+    }
+    this.autoplayEnabled = attempt.Modifiers.some((m) => m.Name === 'Autoplay') && !attempt.IsReplay;
+    if (this.autoplayEnabled) {
+      for (const mod of attempt.Modifiers.filter((m) => m.Name === 'Autoplay')) { mod.Activate(attempt); this.emit('displayModifier', mod); }
+      this.autoplayHandler = new AutoplayHandler(attempt);
+    } else this.autoplayHandler = null;
     if (attempt.Map.AudioBuffer != null) this.sound.song.pitchScale = this.Speed;
     this.Playing = true;
     this.firstFrame = true;
@@ -134,9 +153,23 @@ export class Runner {
     }
   }
 
+  processAutoplayHits() {
+    const a = this.Attempt;
+    if (!this.autoplayEnabled || a.IsReplay || !a.Objects.Note) return;
+    const objects = a.Objects.Note;
+    for (let i = this.ObjectIndicesStart.Note; i < objects.length; i++) {
+      const n = objects[i];
+      if (n.Millisecond > a.Progress) break;
+      if (n.Millisecond < a.StartFrom || n.LastResult !== HitResult.None) continue;
+      n.Hittable = true;
+      try { this.hitResultProgressOverride = n.Millisecond; n.Hit(this); } finally { this.hitResultProgressOverride = null; }
+    }
+  }
+
   Seek(ms) {
     const a = this.Attempt;
     a.Progress = ms;
+    this.autoplayHandler?.Reset(a.Progress);
     for (const key of Object.keys(a.Objects)) {
       this.ObjectIndicesStart[key] = binarySearch(this.noteTimestamps, ms) + 1;
       this.ObjectIndicesEnd[key] = a.Objects[key].length;
@@ -173,7 +206,7 @@ export class Runner {
 
   onHitResultChanged(noteIndex, hitResult) {
     const a = this.Attempt;
-    const judgmentProgress = a.Progress;
+    const judgmentProgress = this.hitResultProgressOverride ?? a.Progress;
     // float lateness = (float)(((int)judgmentProgress - Notes[i].Millisecond) / Speed);
     const lateness = fround((toInt(judgmentProgress) - a.Map.Notes[noteIndex].Millisecond) / this.Speed);
     // float factor = 1 - Math.Max(0, lateness - 25) / 150f;
@@ -217,7 +250,13 @@ export class Runner {
 
   updateHealth(hit) {
     const a = this.Attempt;
-    // (HasHealthModifier branch omitted: no modifiers in this build)
+    if (a.HasHealthModifier) {
+      for (const mod of a.Modifiers.filter((m) => m.health)) {
+        a.Health = mod.ApplyHealthResult(hit, a.Health);
+        if (!mod.Active) { mod.Activate(a); this.emit('displayModifier', mod); }
+      }
+      return;
+    }
     if (hit) {
       a.HealthStep = Math.max(a.HealthStep / 1.45, 15);
       a.Health = Math.min(100, a.Health + a.HealthStep / 1.75);
@@ -227,7 +266,16 @@ export class Runner {
     }
   }
 
-  checkFail(hit, health) { return health <= 0; } // no IFailModifier present -> defaultFail
+  checkFail(hit, health) {
+    const a = this.Attempt, defaultFail = health <= 0; let fail = null;
+    for (const mod of a.Modifiers) {
+      if (!mod.fail) continue;
+      fail = mod.CheckFailCondition(hit, health);
+      if (fail !== defaultFail && !mod.Active) { mod.Activate(a); this.emit('displayModifier', mod); }
+      if (fail === true) break;
+    }
+    return fail ?? defaultFail;
+  }
 
   syncSongPosition() {
     const a = this.Attempt;

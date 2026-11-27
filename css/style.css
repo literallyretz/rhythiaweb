@@ -78,6 +78,8 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 #rDiff{left:32px;right:7px;top:168px;height:42px;font-weight:400;font-size:36px;color:#a0a0a0;-webkit-text-stroke:2px rgba(0,0,0,.376);paint-order:stroke fill}
 #rMappers{left:32px;right:7px;top:212px;height:28px;font-weight:400;font-size:24px;color:#a0a0a0;-webkit-text-stroke:2px rgba(0,0,0,.376);paint-order:stroke fill}
 #rSpeed{left:32px;right:calc(80% + 32px);top:248px;height:48px;font-weight:500;font-size:42px}
+#rMods{position:absolute;left:calc(25% + 32px);right:32px;top:250px;height:44px;display:flex;justify-content:flex-end;gap:8px}   /* Holder/Modifiers HBox: separation 8, alignment end */
+#rMods img{width:44px;height:44px;display:block}   /* ModifierTemplate: TextureRect 44 wide, expand_mode ignore size */
 #rSep{position:absolute;left:32px;right:32px;top:300px;height:2px;background:#fff}
 #rAcc{left:32px;right:calc(70% - 21px);top:308px;height:72px;font-weight:500;font-size:64px}
 #rHits{left:calc(30% + 333.6px);right:32px;top:308px;height:72px;font-weight:500;font-size:64px;color:#a0a0a0;justify-content:flex-end}

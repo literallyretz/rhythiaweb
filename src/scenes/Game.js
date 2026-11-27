@@ -40,12 +40,19 @@ export class GameScene {
     this.stepCount = 0;
     const settings = app.settings;
     app.sound.song.stop(); app.sound.song.setStream(map.decodedAudio); app.sound.updateVolume();
-    const attempt = new Attempt(map, Lobby.Speed, Lobby.StartFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0);
+    const attempt = new Attempt(map, Lobby.Speed, Lobby.StartFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0, Lobby.Modifiers);
     // Attempt ctor: Length = max(1000 * song length, Map.Length + 1000)
     this.attempt = attempt;
     const runner = this.runner = new Runner(app.sound);
     runner.noteColors = app.noteColors;
     runner.onStop = (a) => this.finish(a);
+    runner.updateAutoplayCursor = (pos) => {   // CursorManager.UpdateAutoplayCursor (the CameraSpin branch arrives with camera modes)
+      if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
+      const r = this.app.renderer, s = this.app.settings;
+      attempt.RawCursorPosition = { x: pos.x, y: pos.y }; attempt.CursorPosition = { x: pos.x, y: pos.y };
+      r.cam.position = [Math.fround(pos.x * Math.fround(s.CameraParallax)), Math.fround(pos.y * Math.fround(s.CameraParallax)), 3.76];
+      r.cam.rotation = [0, 0, 0]; r.cursor.position = [pos.x, pos.y, 0];
+    };
     runner.on('attemptStatsUpdated', (a) => { a.HighestCombo = Math.max(a.HighestCombo ?? 0, a.Combo); });
     attempt.HighestCombo = 0;
     this.hud.init(attempt, runner);
@@ -103,7 +110,7 @@ export class GameScene {
   }
 
   onMouseMove(e) { // PlayerInputController -> Game.OnMouseMove (one call per motion event, UseAccumulatedInput = false)
-    if (!this.active || !this.runner.Playing) return;       // if (!Runner.Playing ...) return
+    if (!this.active || !this.runner.Playing || this.attempt.Modifiers.some((m) => m.Name === 'Autoplay')) return;       // if (!Runner.Playing || IsReplay || Autoplay) return
     const evs = e.getCoalescedEvents?.().length ? e.getCoalescedEvents() : [e];
     for (const ev of evs) {
       // Godot (Windows, captured): relative = raw lLastX/lLastY counts, no DPI scaling. Chromium's movementX is the platform value, unscaled

@@ -1,5 +1,5 @@
 // Port of scripts/ui/menu/play/MapInfo.cs, MapInfoContainer.cs, FlatPreview.cs, SpeedPresetButton.cs, LinkPopupButton.cs and prefabs/map_info_container.tscn.
-// Camera Mode, Modifiers and the Leaderboard (with its Dim and LeaderboardHide) are not ported yet; their parts of the panel stay empty.
+// Camera Mode and the Leaderboard (with its Dim and LeaderboardHide) are not ported yet; their parts of the panel stay empty.
 import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
@@ -8,6 +8,7 @@ import { cursorLight, moveCursorLight } from './MapList.js';
 import { OptionPopup } from './OptionPopup.js';
 import { binarySearch } from '../util/misc.js';
 import { GodotScroll } from './GodotScroll.js';
+import { Modifiers } from '../game/modifiers.js';
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const formatTime = (seconds) => { const m = Math.floor(Math.abs(seconds) / 60), s = Math.floor(Math.abs(seconds) % 60); return `${seconds < 0 ? '-' : ''}${m}:${String(s).padStart(2, '0')}`; };
@@ -74,6 +75,7 @@ class MapInfoContainer {
           <div class="mi-btns"><button class="gb mi-b mi-exp" title="Exports map into a .phxm file to share easily"><img src="assets/skin/ui/buttons/export.png" alt=""></button><button class="gb mi-b mi-fav"><img alt=""></button><button class="gb mi-b mi-del" title="Delete"><img src="assets/skin/ui/buttons/delete.png" alt=""></button></div></div>
       </div></div></div><div class="mi-ol"></div></div>
       <div class="mi-act"><div class="mi-bg"></div><div class="mi-sc"><div class="mi-in"><div class="mi-hs">
+        <div class="mi-mods"><div class="mi-lab">Modifiers</div><div class="mi-msc"><div class="mi-min"><div class="mi-mrow"></div></div></div></div>
         <div class="mi-prev"><div class="mi-lab">Preview</div><div class="mi-pa"><div class="mi-fp"></div></div></div>
         <div class="mi-speed"><div class="mi-lab">Speed</div><div class="mi-psc"><div class="mi-pin"><div class="mi-pre"></div></div></div><div class="mi-sl mi-ssl"></div><input class="mi-ed mi-sed" spellcheck="false" autocomplete="off" placeholder="100"></div>
         <div class="mi-play"><div class="mi-lab">Play</div><div class="mi-sl mi-fsl"></div><input class="mi-ed mi-fed" placeholder="0:00" spellcheck="false" autocomplete="off"><button class="mi-start"><span>START</span><img src="assets/skin/ui/buttons/play.png" alt=""></button></div>
@@ -91,6 +93,19 @@ class MapInfoContainer {
     for (const host of [q('.mi-main'), q('.mi-extra')]) {
       const rt = host.firstChild; new GodotScroll(host, rt, { divisor: 16, onLayout: (w) => { rt.style.right = `${w}px`; host.classList.toggle('ov', w > 0); } });
     }
+    // Modifiers.cs: one toggle button per Rhythia.Modifiers entry (icon = GetModIcon, pressed icon colour = mod.Color), in a ScrollContainer
+    const msc = q('.mi-msc'), min = msc.firstChild, mrow = q('.mi-mrow'); this.modButtons = [];
+    for (const mod of Modifiers) {
+      const b = document.createElement('button'); b.className = 'gb mi-mb'; b.title = mod.Name; b.dataset.mod = mod.Name;
+      b.style.setProperty('--mc', `rgba(${mod.Color.slice(0, 3).map((v) => Math.round(v * 255)).join(',')},${mod.Color[3]})`);
+      b.innerHTML = `<i style="-webkit-mask-image:url(assets/skin/modifiers/${mod.Name.toLowerCase()}.png);mask-image:url(assets/skin/modifiers/${mod.Name.toLowerCase()}.png)"></i>`;
+      b.onclick = () => Lobby.SetModifier(mod, !Lobby.Modifiers.some((m) => m.Name === mod.Name));
+      mrow.appendChild(b); this.modButtons.push(b);
+    }
+    const updateMods = (names) => { for (const b of this.modButtons) b.classList.toggle('on', names.includes(b.dataset.mod)); };
+    updateMods(Lobby.Modifiers.map((m) => m.Name)); Lobby.on('ModifiersChanged', updateMods);
+    new GodotScroll(msc, min, { margin: 2, onLayout: (w) => { min.style.right = `${2 + w}px`; } });
+    new GodotScroll(msc, min, { axis: 'h', margin: 2, onLayout: (h) => { min.style.bottom = `${2 + h}px`; } });
     this.favoriteButton = q('.mi-fav'); this.startButton = q('.mi-start'); this.artistLink = q('.mi-al');
 
     // ArtistLink (LinkPopupButton)

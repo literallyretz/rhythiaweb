@@ -60,6 +60,7 @@ export class Hud {
     this.speedEl = this.world('600 32px Nunito', '#fff'); this.skipEl = this.world('600 32px Nunito', '#fff'); this.skipEl.alpha = 0;
     this.titleEl.alpha = 1; this.progLbl.alpha = 1; this.comboEl.alpha = 1; this.speedEl.alpha = 1;
     this.missImg = new Image(); this.missImg.src = `${ASSET}miss_feedback.png`;
+    this.modImgs = {}; this.modIcons = [];   // HudManager: TemplateModifier duplicates (Misc.GetModIcon)
     this.popups = []; this.hitPopups = 0; this.missPopups = 0;
     this.ver = { health: 0, prog: 0, left: 0, right: 0 };
   }
@@ -117,6 +118,11 @@ export class Hud {
     this.tgt = { health: 32 + attempt.Health * 10.24, ringP: 0, ringC: [1, 1, 1] };
     this.hitOp = 0.627451; this.missOp = 0.627451; this.skipShown = false; this.skipT = 0; this.healthDim = false; this.healthW = this.progW = -1; this._last = null; this.lastProg = -1;
     this.popups = []; this.hitPopups = this.missPopups = 0; this._ringKey = null;
+    this.modIcons = [];   // HudManager.Init: previous icons freed
+    runner.on('displayModifier', (mod) => {   // HudManager.DisplayModifier
+      const img = this.modImgs[mod.Name] ??= Object.assign(new Image(), { src: `assets/skin/modifiers/${mod.Name.toLowerCase()}.png` });
+      this.modIcons.push(img);
+    });
     this.onStats(attempt);
     runner.on('attemptStatsUpdated', (a) => this.onStats(a));
     runner.on('hitResultChanged', (i, r) => this.onHit(i, r));
@@ -137,6 +143,9 @@ export class Hud {
     if (!this.sup) { lab(this.titleEl, T.title, 0.005); lab(this.progLbl, T.progLbl, 0.0025); }   // Title.Init / Progress.Init: Visible = !SuperSimpleHUD
     if (!this.sup && !this.alt) lab(this.comboEl, T.combo, 0.0025, -1);   // Combo.Init: Visible = !SuperSimpleHUD, then = !AltComboCounter   // only its outline is visible (modulate alpha 0): outline_render_priority -1
     lab(this.speedEl, T.speed, 0.0025); lab(this.skipEl, T.skip, 0.0025);
+    // TemplateModifier: Sprite3D at (0, -8.5, -10) tilted like the health bar, pixel_size 0.01 (64 px = 0.64), modulate alpha 0.376471,
+    // single-sided, no_depth_test; icons are spaced (i - (count - 1) / 2) * 0.75 along X (positionModifiers)
+    this.modIcons.forEach((img, i) => { if (img.complete && img.naturalWidth) it.push({ src: img, ver: 1, o: [(i - (this.modIcons.length - 1) / 2) * 0.75, -8.5, -10], b: T.health.b, w: img.naturalWidth * 0.01, h: img.naturalHeight * 0.01, alpha: 0.376471, cull: true, priority: 0, mips: true, noDepth: true }); });
     const I = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
     for (const p of this.popups) {
       if (p.hit) it.push({ src: p.canvas, ver: 1, o: [p.x, p.y, 0], b: I, w: p.canvas.width * 0.005, h: p.canvas.height * 0.005, alpha: p.alpha, cull: false, priority: 0, mips: false });

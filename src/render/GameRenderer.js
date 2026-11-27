@@ -30,9 +30,10 @@ void main(){ vec4 t = texture(uTex, vUV); vec3 c = t.rgb;
   if (uFogOn > 0.5) { float f = pow(smoothstep(uFogBegin, uFogEnd, length(vView)), uFogCurve) * uFogDensity; c = mix(c, srgb2lin(uFog), clamp(f, 0.0, 1.0)); }
   o = vec4(c, t.a * uAlpha); }`;
 const NOTE_VS = `#version 300 es
-layout(location=0) in vec3 aPos; layout(location=1) in vec3 iPos; layout(location=2) in vec4 iColor;
+layout(location=0) in vec3 aPos; layout(location=1) in vec4 iPos; layout(location=2) in vec4 iColor;   // iPos.w: rotation about +Z (Vortex)
 uniform mat4 uVP; uniform float uScale; out vec4 vColor;
-void main(){ vColor = iColor; gl_Position = uVP * vec4(iPos + aPos * uScale, 1.0); }`;
+void main(){ vColor = iColor; float c = cos(iPos.w), s = sin(iPos.w); vec3 p = aPos * uScale;
+  gl_Position = uVP * vec4(iPos.xyz + vec3(p.x * c - p.y * s, p.x * s + p.y * c, p.z), 1.0); }`;
 const NOTE_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR} in vec4 vColor; uniform bool uPrepass; out vec4 o;
 // vertex_color_is_srgb: COLOR.rgb sRGB -> linear. depth_prepass_alpha: depth pass discards alpha < opaque_prepass_threshold (0.99)
@@ -107,8 +108,8 @@ export class GameRenderer {
     const nb = this.noteMeshBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instBuf);
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 0); gl.vertexAttribDivisor(1, 1);
-    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 28, 12); gl.vertexAttribDivisor(2, 1);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 0); gl.vertexAttribDivisor(1, 1);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 32, 16); gl.vertexAttribDivisor(2, 1);
     gl.bindVertexArray(null);
   }
 
@@ -183,7 +184,7 @@ export class GameRenderer {
     // --- alpha list (RenderForwardClustered: sort_by_reverse_depth_and_priority). Every object here is an alpha material:
     // priority ascending, then farthest first by distance camera -> AABB centre. Depth test on, no depth write
     // (depth_draw_opaque); the note MultiMesh (ALPHA_DEPTH_PRE_PASS) first writes depth for alpha >= 0.99 in the depth prepass.
-    const inst = this.buildNotes(attempt, runner, progress, settings, noteColors); this.lastNoteCount = inst.length / 7;
+    const inst = this.buildNotes(attempt, runner, progress, settings, noteColors); this.lastNoteCount = inst.length / 8;
     gl.depthFunc(gl.LEQUAL);                                   // Godot reverse-Z GREATER_OR_EQUAL
     gl.colorMask(false, false, false, false); gl.depthMask(true); gl.disable(gl.BLEND);
     if (!OFF.has('prepass')) this.drawNotes(vp, inst, settings, true);
@@ -192,7 +193,7 @@ export class GameRenderer {
     const dist = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz), list = [];
     if (inst.length && !OFF.has('notes')) { // MultiMesh AABB from this frame's instances (mesh extent noteSize/2 in x/y/z)
       let mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
-      for (let i = 0; i < inst.length; i += 7) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], inst[i + k]); mx[k] = Math.max(mx[k], inst[i + k]); }
+      for (let i = 0; i < inst.length; i += 8) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], inst[i + k]); mx[k] = Math.max(mx[k], inst[i + k]); }
       list.push({ p: 0, d: dist((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2), draw: () => this.drawNotes(vp, inst, settings, false) });
     }
     const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0, fog = null) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
@@ -237,7 +238,8 @@ export class GameRenderer {
     const noteOpacity = settings.NoteOpacity, exp = Math.max(Number.EPSILON, settings.NoteOpacityExponent);
     const pushback = settings.Pushback, speed = attempt.Speed;
     const hitWindowDepth = pushback ? HIT_WINDOW * ar / 1000 : 0;
-    const out = [];
+    const out = [], mods = attempt.Modifiers.filter((m) => m.render);
+    const note = { X: 0, Y: 0, Index: 0, Transform: { x: 0, y: 0, z: 0, rot: 0 }, Opacity: 1 };   // the Note as render modifiers see it
     for (let i = start; i < end; i++) {                      // NoteRenderer.Process: notes[start..end], instance i = note start+i
       const n = notes[i];
       // NoteRenderer.doRender
@@ -247,9 +249,12 @@ export class GameRenderer {
       let opacity = 1;
       if (fadeIn > 0) opacity = Math.min(1, p / fadeIn);
       if (fadeOut > 0 && attempt.UseFadeOut) opacity -= 1 - Math.min(1, (1 - p) / fadeOut);
+      // note.Transform.Origin = (X, Y, -depth); then every IObjectRenderModifier<Note>.ModifyRenderObject
+      const T = note.Transform; T.x = n.X; T.y = n.Y; T.z = -depth; T.rot = 0;
+      if (mods.length) { note.X = n.X; note.Y = n.Y; note.Index = n.Index; note.Opacity = opacity; for (const m of mods) m.ModifyRenderObject(note, attempt); opacity = note.Opacity; }
       const c = noteColors[n.Index % noteColors.length];
       const a = Math.min(Math.max(Math.pow(Math.max(0, opacity * noteOpacity), exp), 0), 1);
-      out.push(n.X, n.Y, -depth, c[0], c[1], c[2], a);
+      out.push(T.x, T.y, T.z, T.rot, c[0], c[1], c[2], a);
     }
     return out;
   }
@@ -275,11 +280,13 @@ export class GameRenderer {
     gl.uniform3fv(u.uO, it.o); gl.uniform3fv(u.uBX, it.b[0]); gl.uniform3fv(u.uBY, it.b[1]); gl.uniform2f(u.uSize, it.w, it.h);
     gl.uniform1f(u.uAlpha, it.alpha); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(u.uTex, 0);
     if (it.cull) { gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); } else gl.disable(gl.CULL_FACE);
+    const depth = it.noDepth && gl.isEnabled(gl.DEPTH_TEST); if (depth) gl.disable(gl.DEPTH_TEST);   // no_depth_test
     gl.bindVertexArray(this.quadVAO); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.disable(gl.CULL_FACE);
+    if (depth) gl.enable(gl.DEPTH_TEST);
   }
 
   drawNotes(vp, arr, settings, prepass) {
-    const gl = this.gl, count = arr.length / 7; if (!count) return;
+    const gl = this.gl, count = arr.length / 8; if (!count) return;
     gl.useProgram(this.noteP.program); gl.uniformMatrix4fv(this.noteP.u.uVP, false, vp);
     gl.uniform1f(this.noteP.u.uScale, settings.NoteSize / 2);   // Transform3D basis = noteSize/2
     gl.uniform1i(this.noteP.u.uPrepass, prepass ? 1 : 0);

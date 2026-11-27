@@ -19,6 +19,8 @@ export class ResultsScene {
     set('rHits', `${padMagnitude(attempt.Hits)} / ${padMagnitude(attempt.Sum)}`);
     set('rStatus', attempt.Alive ? (attempt.Qualifies ? 'PASSED' : 'DISQUALIFIED') : 'FAILED');
     set('rSpeed', `${attempt.Speed.toFixed(2)}x`);
+    $('rMods').innerHTML = '';   // one ModifierTemplate duplicate per attempt modifier
+    for (const mod of attempt.Modifiers) { const i = document.createElement('img'); i.alt = mod.Name; i.src = `assets/skin/modifiers/${mod.Name.toLowerCase()}.png`; $('rMods').appendChild(i); }
     if (this.app.coverURL) { $('resCoverBg').style.backgroundImage = `url(${this.app.coverURL})`; $('resCover').style.backgroundImage = `url(${this.app.coverURL})`; }
     this.app.sound.menuMusic.stop();                           // Results._Ready: stops menu music after going to results scene
     // Results._Ready: if the song is not playing start it; PitchScale = attempt speed

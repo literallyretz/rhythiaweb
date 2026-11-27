@@ -149,3 +149,14 @@
 /* outline.gdshader cursor light: a fixed 700 px gradient moved with a transform (no repaint on mouse move); fill and selection light above it */
 .mb .out .cl,.mi-ol .cl{position:absolute;left:0;top:0;width:700px;height:700px;pointer-events:none;will-change:transform}
 .mb .out .lt{position:absolute;inset:0;pointer-events:none}
+
+/* Modifiers panel (map_info_container.tscn Actions/.../Modifiers: anchors 0..0.5 x 0..0.5, offsets 16/16/-8/-8); ScrollContainer below the 32 px label */
+.mi-mods{position:absolute;left:16px;top:16px;right:calc(50% + 8px);bottom:calc(50% + 8px)}
+.mi-msc{position:absolute;left:0;right:0;top:32px;bottom:0;overflow:hidden}
+.mi-min{position:absolute;left:2px;top:2px;right:2px;bottom:2px;min-width:554px}   /* HBox minimum: 9 x 58 + 8 x 4 */
+.mi-mrow{height:100%;display:flex;justify-content:center;align-items:center;gap:4px}
+/* ModifierButton: toggle, icon_max_width 42; icon_normal_color (1,1,1,0.643), hover white (theme default), pressed / hover_pressed = mod.Color */
+.mi-mb{flex:none;width:58px;height:54px;display:flex;align-items:center;justify-content:center;padding:6px 8px}
+.mi-mb i{display:block;width:42px;height:42px;background:rgba(255,255,255,.6431);-webkit-mask-size:100% 100%;mask-size:100% 100%}
+.mi-mb:hover i{background:#fff}
+.mi-mb.on i,.mi-mb.on:hover i{background:var(--mc)}
