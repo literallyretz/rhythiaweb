@@ -4,11 +4,12 @@
 //   axis 'v' (VScrollBar, 4 px: theme scroll style content_margin_left 4) or 'h' (HScrollBar, 4 px: bottom border 4; track starts after content_margin_left 6).
 //   divisor: wheel step = page / divisor (ScrollContainer: ScrollBar.PAGE_DIVISOR 8; RichTextLabel: page * 0.5 / 8).
 //   stopAlways: mouse_filter STOP with mouse_force_pass_scroll_events = false, so every wheel event ends here.
+//   showNever: SCROLL_MODE_SHOW_NEVER (still scrolls, the bar is hidden); change it with setShowNever().
 const BAR = 4;
 
 export class GodotScroll {
-  constructor(host, inner, { axis = 'v', margin = 0, divisor = 8, stopAlways = false, onLayout = null }) {
-    Object.assign(this, { host, inner, axis, margin, divisor, value: 0, visible: false, onLayout, page: 0, max: 0 });
+  constructor(host, inner, { axis = 'v', margin = 0, divisor = 8, stopAlways = false, onLayout = null, showNever = false }) {
+    Object.assign(this, { host, inner, axis, margin, divisor, value: 0, visible: false, overflow: false, showNever, onLayout, page: 0, max: 0 });
     if (axis === 'v') inner._gsV = this;
     inner._gsT ??= { h: 0, v: 0 };
     this.lead = axis === 'h' ? 6 : 0;   // scroll style margin before the grabber area
@@ -21,7 +22,7 @@ export class GodotScroll {
       const factor = e.deltaMode === 1 ? Math.abs(e.deltaY) / 3 : e.deltaMode === 2 ? Math.abs(e.deltaY) * 8 : Math.abs(e.deltaY) / 100;   // one notch = factor 1
       const before = this.value;
       if (this.axis === 'h' && this.inner._gsV?.visible) return;   // the vertical bar takes the wheel; the horizontal one only when there is no vertical one
-      if (this.visible) this.scroll(Math.sign(e.deltaY) * (this.page / this.divisor) * factor);
+      if (this.overflow) this.scroll(Math.sign(e.deltaY) * (this.page / this.divisor) * factor);
       if (stopAlways || this.value !== before) e.stopPropagation();
     });
     let drag = null;   // ScrollBar.gui_input: click before/after the grabber pages, the grabber drags
@@ -43,11 +44,13 @@ export class GodotScroll {
   area() { return (this.axis === 'v' ? this.bar.offsetHeight : this.bar.offsetWidth) - this.lead; }
   ratio() { return this.max > 0 ? Math.min(1, Math.max(0, this.value / this.max)) : 0; }
   scroll(d) { this.setValue(this.value + d); }
+  setShowNever(v) { this.showNever = v; this.update(); }
   setValue(v) { this.value = Math.max(0, Math.min(v, this.max - this.page)); this.draw(); }   // Range clamps to max - page
   update() {
     const hostSize = this.axis === 'v' ? this.host.clientHeight : this.host.clientWidth;
     this.page = hostSize - 2 * this.margin; this.max = this.size(this.inner);
-    const visible = this.max > this.page + 0.5;
+    this.overflow = this.max > this.page + 0.5;
+    const visible = this.overflow && !this.showNever;
     if (visible !== this.visible) {
       this.visible = visible; this.bar.style.display = visible ? '' : 'none'; this.onLayout?.(visible ? BAR : 0);
       this.max = this.size(this.inner);

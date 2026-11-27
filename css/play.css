@@ -160,3 +160,51 @@
 .mi-mb i{display:block;width:42px;height:42px;background:rgba(255,255,255,.6431);-webkit-mask-size:100% 100%;mask-size:100% 100%}
 .mi-mb:hover i{background:#fff}
 .mi-mb.on i,.mi-mb.on:hover i{background:var(--mc)}
+/* Modes panel (anchors 0.5..0.75 x 0..0.5, offsets 8/16/-8/-8): ScrollContainer below the 32 px label, VBox of CameraButtons (min height 32, font_color white) */
+.mi-modes{position:absolute;left:calc(50% + 8px);right:calc(25% + 8px);top:16px;bottom:calc(50% + 8px)}
+.mi-csc{position:absolute;left:0;right:0;top:32px;bottom:0;overflow:hidden}
+.mi-cin{position:absolute;left:2px;top:2px;right:2px;display:flex;flex-direction:column;gap:4px}
+.mi-cb{min-height:32px;color:#fff}
+/* Grid layout: HBox rows (alignment centre, separation 10) of MapButtonSquare (prefabs/map_button_square.tscn), 140 x 140 */
+.mb.sq{right:auto;width:140px;height:140px;overflow:visible}
+.mb.sq .hold{border-radius:5px;inset:0}
+.mb.sq .out{border-radius:2px}
+.mb.sq .cbg{position:absolute;inset:2px;background:url(../assets/skin/ui/play/grid_cover_background.png) 0 0/100% 100%;background-blend-mode:multiply;opacity:.502}   /* SelfModulate = difficulty colour, modulate alpha .5 */
+.mb.sq .cov{left:2px;right:2px;top:2px;bottom:2px;background-size:100% 100%;-webkit-mask:none;mask:none;opacity:.502}   /* stretched (expand ignore size, stretch scale) */
+.mb.sq.foc .cov{opacity:.7843}.mb.sq.sel .cov{opacity:1}
+.mb.sq .fav{right:2px;top:2px;width:16px;height:16px}.mb.sq .fav i{width:16px;height:16px}
+.mb.sq .sep2{position:absolute;left:calc(50% - 54px);width:108px;top:calc(67.1% + .06px);height:1px;background:rgba(255,255,255,.2353)}
+.mb.sq .sep1{position:absolute;left:calc(49.6% - .44px);top:calc(88.3% - 7.62px);width:1px;height:15.14px;background:rgba(255,255,255,.2353)}   /* 15.14 x 1 rect rotated 90 deg about its top-left */
+.mb.sq .ttl,.mb.sq .dif,.mb.sq .len,.mb.sq .aut{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;font:500 12px Roboto,sans-serif;color:#fff;overflow:hidden;white-space:normal;
+  -webkit-text-stroke:.5px #000;paint-order:stroke fill;text-shadow:1px 1px 0 rgba(0,0,0,.588),1.7px 1.7px 0 rgba(0,0,0,.588),.3px 1.7px 0 rgba(0,0,0,.588),1.7px .3px 0 rgba(0,0,0,.588)}   /* LabelSettings: font 12, outline 1, shadow 4 (alpha .588) */
+.mb.sq .ttl{left:8px;top:4px;right:8px;bottom:calc(10% + 32px);line-height:15px;-webkit-text-stroke:1px #000;text-shadow:1px 1px 0 #000,1.7px 1.7px 0 #000,.3px 1.7px 0 #000,1.7px .3px 0 #000}   /* outline 2, shadow 4 black, line_spacing 1 */
+.mb.sq .ttl span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:6;overflow:hidden;word-break:break-word}   /* autowrap word (smart), ellipsis */
+.mb.sq .dif{left:8px;top:80%;right:50%;bottom:4px}
+.mb.sq .len{left:39px;right:calc(27.9% - .06px);top:calc(65.7% + 3.02px);bottom:calc(11.1% + 8.46px)}
+.mb.sq .aut{left:calc(52.9% - .06px);right:4px;top:80%;bottom:calc(2.9% - .06px)}
+.mb.sq .aut span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;word-break:break-word}
+/* Dim (ColorRect, ignores the mouse), LeaderboardHide (full-size flat button, left+right), Leaderboard (bottom 100 px: offset_top -100, tweened to -100 * min(4, count)) */
+.mi-dim{position:absolute;inset:0;pointer-events:none;background:rgba(0,0,0,0)}
+.mi-lbhide{position:absolute;inset:0;border:0;padding:0;background:none;cursor:default;pointer-events:auto}
+.mi-lbhide[hidden]{display:none}
+.mi-lb{position:absolute;left:0;right:0;top:calc(100% - 100px);bottom:0;pointer-events:auto}
+.mi-lbbg{position:absolute;inset:0;background:rgba(0,0,0,.8784);border-radius:4px}
+.mi-lbsc{position:absolute;left:0;top:0;right:2px;bottom:0;overflow:hidden}   /* ScrollContainer offset_right -2 */
+.mi-lbv{position:absolute;left:0;top:0;right:0;display:flex;flex-direction:column}   /* VBox separation 0 */
+.mi-lbexp,.sp-btn{position:absolute;inset:0;border:0;padding:0;background:transparent;cursor:pointer}
+.mi-lbexp:hover,.sp-btn:hover{background:rgba(255,255,255,.0314)}.mi-lbexp:active,.sp-btn:active{background:rgba(255,255,255,.0471)}
+.mi-lbexp[hidden],.sp-btn[hidden]{display:none}
+.mi-hov{position:absolute;inset:8px;border-radius:8px;background:rgba(255,255,255,.0314);opacity:0;display:flex;align-items:center;justify-content:center;pointer-events:none;
+  font:500 16px Roboto,sans-serif;color:#fff;-webkit-text-stroke:.5px #000;paint-order:stroke fill;text-shadow:1px 1px 0 #000,1.7px 1.7px 0 #000,.3px 1.7px 0 #000,1.7px .3px 0 #000}   /* Label: outline 1, shadow 4 */
+.mi-lb>.mi-ol{border-radius:4px}
+/* ScorePanel (prefabs/score_panel.tscn): 100 px rows, clip_contents */
+.sp{position:relative;flex:none;height:100px;overflow:hidden;font-family:Ubuntu,sans-serif;color:#fff}
+.sp-bg{position:absolute;inset:0}
+.sp-pl{position:absolute;left:16px;top:8px;right:calc(40% + 4px);height:calc(40% - 8px);display:flex;align-items:center;font-weight:500;font-size:24px;white-space:nowrap;overflow:hidden}
+.sp-pl span{overflow:hidden;text-overflow:ellipsis}
+.sp-sc{position:absolute;left:calc(60% + 4px);top:8px;right:16px;height:calc(40% - 8px);display:flex;align-items:center;justify-content:flex-end;font-size:24px;white-space:nowrap}
+.sp-acc{position:absolute;left:calc(60% + 4px);top:calc(40% + 4px);right:16px;text-align:right;font-size:18px;color:rgb(160,160,160);white-space:nowrap}
+.sp-time{position:absolute;left:calc(60% + 4px);top:calc(80% + 4px);right:16px;text-align:right;font-size:10px;color:rgb(77,77,77);white-space:nowrap}
+.sp-spd{position:absolute;left:16px;top:calc(40% + 4px);font-size:18px;white-space:nowrap}
+.sp-mods{position:absolute;left:16px;top:calc(40% + 28px);right:calc(40% + 4px);bottom:8px;display:flex;gap:2px}
+.sp-mods img{height:100%;width:auto;display:block}   /* TextureRect expand_mode fit width proportional */

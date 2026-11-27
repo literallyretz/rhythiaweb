@@ -4,6 +4,7 @@ import { Runner } from '../game/Runner.js';
 import { TrailRenderer } from '../game/TrailRenderer.js';
 import { CURSOR_SIZE } from '../constants.js';
 import { updateCursor } from '../game/CameraLock.js';
+import { BOUNDS } from '../constants.js';
 import { Hud } from './Hud.js';
 import { SettingsManager } from '../SettingsManager.js';
 import { tweenOpacity } from '../util/tween.js';
@@ -40,15 +41,26 @@ export class GameScene {
     this.stepCount = 0;
     const settings = app.settings;
     app.sound.song.stop(); app.sound.song.setStream(map.decodedAudio); app.sound.updateVolume();
-    const attempt = new Attempt(map, Lobby.Speed, Lobby.StartFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0, Lobby.Modifiers);
+    const attempt = new Attempt(map, Lobby.Speed, Lobby.StartFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0, Lobby.Modifiers, Lobby.CameraMode);
     // Attempt ctor: Length = max(1000 * song length, Map.Length + 1000)
     this.attempt = attempt;
     const runner = this.runner = new Runner(app.sound);
     runner.noteColors = app.noteColors;
     runner.onStop = (a) => this.finish(a);
-    runner.updateAutoplayCursor = (pos) => {   // CursorManager.UpdateAutoplayCursor (the CameraSpin branch arrives with camera modes)
+    runner.updateAutoplayCursor = (pos) => {   // CursorManager.UpdateAutoplayCursor
       if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return;
       const r = this.app.renderer, s = this.app.settings;
+      pos = { x: Math.min(Math.max(pos.x, -BOUNDS), BOUNDS), y: Math.min(Math.max(pos.y, -BOUNDS), BOUNDS) };
+      if (attempt.CameraMode.Name === 'Spin') {   // aim the camera at the target and feed the difference through CameraSpin as mouse movement
+        const fr = Math.fround, par = fr(s.CameraParallax), PI = fr(Math.PI), TAU = 2 * Math.PI;
+        const o = [fr(attempt.CursorPosition.x * par), fr(attempt.CursorPosition.y * par), 3.5];
+        const d = [pos.x - o[0], pos.y - o[1], 0 - o[2]], l = Math.hypot(...d);   // Basis.LookingAt(target - origin, Up).GetEuler() (YXZ)
+        const ex = Math.asin(d[1] / l), ey = Math.atan2(-d[0], -d[2]);
+        const pitch = fr(ex - r.cam.rotation[0]);
+        const diff = (ey - r.cam.rotation[1]) % TAU, yaw = fr((2 * diff) % TAU - diff);   // Mathf.AngleDifference(from, to)
+        attempt.CameraMode.Process(attempt, r.cam, r.cursor, { x: fr(-yaw * fr(120 * PI)), y: fr(-pitch * fr(120 * PI)) }, 1);
+        return;
+      }
       attempt.RawCursorPosition = { x: pos.x, y: pos.y }; attempt.CursorPosition = { x: pos.x, y: pos.y };
       r.cam.position = [Math.fround(pos.x * Math.fround(s.CameraParallax)), Math.fround(pos.y * Math.fround(s.CameraParallax)), 3.76];
       r.cam.rotation = [0, 0, 0]; r.cursor.position = [pos.x, pos.y, 0];
@@ -56,7 +68,7 @@ export class GameScene {
     runner.on('attemptStatsUpdated', (a) => { a.HighestCombo = Math.max(a.HighestCombo ?? 0, a.Combo); });
     attempt.HighestCombo = 0;
     this.hud.init(attempt, runner);
-    app.renderer.cam.position = [0, 0, 3.75]; app.renderer.cursor.position = [0, 0, 0];
+    app.renderer.cam.position = [0, 0, 3.75]; app.renderer.cam.rotation = [0, 0, 0]; app.renderer.cursor.position = [0, 0, 0];
     app.renderer.noteHitColor = [1, 1, 1];
     runner.Play(attempt, settings);
     this.app.sound.beginGameplayScope(attempt.Map);         // Runner.Play -> SoundManager.BeginGameplayScope

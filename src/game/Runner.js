@@ -4,6 +4,7 @@ import { HitResult } from '../map/Note.js';
 import { BREAK_TIME } from '../constants.js';
 import { binarySearch, fround, toInt } from '../util/misc.js';
 import { AutoplayHandler } from './AutoplayHandler.js';
+import { recordScore } from '../map/Leaderboard.js';
 
 export class Runner {
   constructor(sound) {
@@ -201,6 +202,8 @@ export class Runner {
     this.Playing = false;
     this.StopQueued = false;
     a.Stopped = true;
+    // (replay saving and Stats are not ported) personal bests: every attempt from the start that wasn't autoplayed, failed or not
+    if (!a.IsReplay && a.StartFrom === 0 && !this.autoplayEnabled) recordScore(a, this.Speed);
     if (results && this.onStop) this.onStop(a);
   }
 

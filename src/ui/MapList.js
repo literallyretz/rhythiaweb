@@ -1,5 +1,5 @@
-// Port of scripts/ui/menu/play/MapList.cs + MapButton.cs + MapButtonWide.cs (List layout), prefabs/map_button_wide.tscn, outline.gdshader and the
-// Menus/Play/MapList node tree of scenes/main_menu.tscn. The Grid layout (MapButtonSquare) is not ported yet.
+// Port of scripts/ui/menu/play/MapList.cs + MapButton.cs + MapButtonWide.cs + MapButtonSquare.cs, prefabs/map_button_wide.tscn,
+// prefabs/map_button_square.tscn, outline.gdshader, LayoutButton.cs and the Menus/Play/MapList node tree of scenes/main_menu.tscn.
 import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
 import { Bindable } from '../util/misc.js';
@@ -14,10 +14,10 @@ const LIGHT = '201,0,69', CURSOR_LIGHT = '38,38,38', OUTLINE = '#0d0d0d', GLOW =
 // cursor light: one fixed gradient on its own layer, moved with a transform, so mouse movement doesn't repaint the panel
 export const radial = (x, y, rgb, f) => `radial-gradient(circle at ${x}px ${y}px,${[0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1].map((t) => `rgba(${rgb},${f(1 - t)}) ${(t * GLOW).toFixed(1)}px`).join(',')},rgba(${rgb},0) ${GLOW}px)`;
 // Cursor light (linear falloff) as its own layer: one fixed gradient, moved with a transform, so mouse movement doesn't repaint the outline.
-export const cursorLight = (parent) => { const c = document.createElement('i'); c.className = 'cl'; c.style.background = radial(GLOW, GLOW, CURSOR_LIGHT, (t) => t.toFixed(3)); parent.appendChild(c); return c; };
+export const cursorLight = (parent, rgb = CURSOR_LIGHT, a = 1) => { const c = document.createElement('i'); c.className = 'cl'; c.style.background = radial(GLOW, GLOW, rgb, (t) => (t * a).toFixed(3)); parent.appendChild(c); return c; };
 export const moveCursorLight = (c, x, y) => { const v = `translate(${(x - GLOW).toFixed(1)}px,${(y - GLOW).toFixed(1)}px)`; if (c._v !== v) { c._v = v; c.style.transform = v; } };
 
-class MapButton {   // MapButton + MapButtonWide
+class MapButtonWide {   // MapButton + MapButtonWide
   constructor(list) {
     this.list = list;
     this.Map = null; this.ListIndex = 0; this.MinimumSize = list.buttonMinSize; this.HoveredSizeOffset = list.buttonHoverSize; this.SelectedSizeOffset = list.buttonSelectSize;
@@ -83,11 +83,82 @@ class MapButton {   // MapButton + MapButtonWide
   }
 }
 
+// MapButton + MapButtonSquare (prefabs/map_button_square.tscn): 140 px square; its Holder grows by SizeOffset on every side instead of the row.
+// Outline: outline_color by focus (13 / 26 / c90045), cursor_light_color (1, 1, 1, 0.125), light_color c90045, same fill and selection light.
+class MapButtonSquare {
+  constructor(list) {
+    this.list = list; this.square = true;
+    this.Map = null; this.ListIndex = 0; this.MinimumSize = list.buttonMinSize; this.HoveredSizeOffset = list.buttonHoverSize; this.SelectedSizeOffset = list.buttonSelectSize;
+    this.SizeOffset = 0; this.Hovered = false; this.Selected = false; this.OutlineFill = 0; this.targetOutlineFill = 0; this.LightPosition = [-10000, 0];
+    this.height = this.MinimumSize; this.off = 0; this.holderLeft = 0;   // CustomMinimumSize = One * MinimumSize; Holder offsets (-off .. off)
+    const el = this.el = document.createElement('div'); el.className = 'mb sq';
+    el.innerHTML = '<div class="hold"><div class="out"></div><div class="cbg"></div><div class="cov"></div><div class="fav"><i></i></div><div class="sep2"></div><div class="ttl"><span></span></div><div class="dif"><span></span></div><div class="len"><span></span></div><div class="sep1"></div><button class="hit" tabindex="-1"></button><div class="aut"><span></span></div></div>';
+    const q = (s) => el.querySelector(s);
+    this.hold = q('.hold'); this.out = q('.out'); this.cl = cursorLight(this.out, '255,255,255', 0.1254902); this.lt = document.createElement('i'); this.lt.className = 'lt'; this.out.appendChild(this.lt);
+    this.cbg = q('.cbg'); this.cov = q('.cov'); this.fav = q('.fav'); this.title = q('.ttl span'); this.dif = q('.dif span'); this.len = q('.len span'); this.aut = q('.aut span');
+    const hit = q('.hit');
+    hit.onmouseenter = () => this.Hover(true); hit.onmouseleave = () => this.Hover(false);
+    hit.onclick = () => this.onPressed?.();
+    hit.oncontextmenu = (e) => e.preventDefault();
+  }
+  Hover(hover) {
+    if (this.Hovered === hover) return;
+    this.Hovered = hover; this.SizeOffset = this._computeSizeOffset();
+    this.onHover?.(hover);
+    this.el.classList.toggle('hov', hover);   // Holder self_modulate tween 0.15 s
+    this._focus();
+  }
+  Select(select = true) {
+    if (this.Selected === select) return;
+    this.Selected = select; this.SizeOffset = this._computeSizeOffset();
+    this.el.classList.toggle('sel', select);
+    this._focus();
+  }
+  Deselect() { this.Select(false); }
+  // updateFocus: Cover alpha 200 when hovered or selected (base.Select's 0.1 s tween then carries a selected cover on to 255), else 128
+  _focus() {
+    this.el.classList.toggle('foc', this.Hovered || this.Selected);
+    this.out.style.backgroundColor = this.Selected ? '#c90045' : this.Hovered ? '#1a1a1a' : '#0d0d0d';
+  }
+  UpdateInfo(map, selected = false) {
+    this.Map = map;
+    this.title.textContent = map.PrettyTitle;
+    this.fav.style.display = map.Favorite ? 'block' : 'none';
+    this.fav.firstChild.style.background = DIFFICULTY_COLORS[clamp(map.Difficulty, 0, DIFFICULTY_COLORS.length - 1)];
+    const url = this.list.coverURL(map); this.cov.style.backgroundImage = url ? `url(${url})` : 'none';
+    const color = DIFFICULTY_COLORS[map.Difficulty];
+    this.dif.textContent = map.DifficultyName; this.dif.parentNode.style.color = color;
+    this.aut.textContent = map.PrettyMappers; this.len.textContent = formatTime(map.Length / 1000);
+    this.cbg.style.backgroundColor = color;   // CoverBackground.SelfModulate
+    if (selected) { this.Select(); this.UpdateOutline(1, 0); }
+    this._focus();
+  }
+  UpdateOutline(targetFill, fill = -1) { this.targetOutlineFill = targetFill; if (fill !== -1) this.OutlineFill = fill; }
+  _computeSizeOffset() { return (this.Hovered ? this.HoveredSizeOffset : 0) + (this.Selected ? this.SelectedSizeOffset : 0); }
+
+  process(delta, now, container, x) {
+    const list = this.list;
+    this.OutlineFill = lerp(this.OutlineFill, this.targetOutlineFill, Math.min(1, 10 * delta));
+    this.fav.style.transform = `rotate(${this.ListIndex * -10 + now / 20}deg)`;
+    this.fav.style.opacity = (225 + 30 * Math.sin(Math.PI * now / 2000 + this.ListIndex)) / 255;
+    // MapButtonSquare._Process: Holder offsets lerp to (-half, -half, half, half)
+    this.off = lerp(this.off, this.SizeOffset / 2, Math.min(1, 16 * delta));
+    const o = this.off; this.hold.style.inset = `${-o}px`;
+    this.holderLeft = (x - o) / (list.width || 1);
+    const f = this.OutlineFill, [lx, ly] = this.LightPosition, rect = container.rect, L = rect.left + x - o, T = rect.top - o;
+    const lt = [radial(lx - L, ly - T, LIGHT, (t) => (t * t).toFixed(3)),
+      `linear-gradient(to right,rgba(${LIGHT},1) ${((2 * f - 1) * 100).toFixed(2)}%,rgba(${LIGHT},0) ${(2 * f * 100).toFixed(2)}%)`].join(',');
+    if (this._lt !== lt) { this._lt = lt; this.lt.style.background = lt; }
+    moveCursorLight(this.cl, list.mouse.x - L, list.mouse.y - T);
+  }
+}
+
 export class MapList {
   constructor(app) {
     this.app = app; MapList.Instance = this;
     this.Layout = 'List'; this.Spacing = 10;
     this.WideButtonMinimumSize = 90; this.WideButtonHoveredSize = 10; this.WideButtonSelectedSize = 20;
+    this.SquareButtonMinimumSize = 140; this.SquareButtonHoveredSize = 5; this.SquareButtonSelectedSize = 10;
     this.ScrollStep = 1500; this.ScrollFriction = 20; this.ScrollElasticity = 0.02;
     this.ScrollLength = 0; this.ScrollMomentum = 0; this.TargetScroll = 0; this.Scroll = 0;
     this.DragScroll = false; this.MouseScroll = false; this.DisplaySelectionCursor = false;
@@ -127,6 +198,8 @@ export class MapList {
       }
     });
     new ResizeObserver(() => this._clear()).observe(this.root);   // Resized += clear
+    const lb = $('stLayout'); lb.disabled = false;
+    lb.onclick = () => { const layout = this.Layout === 'List' ? 'Grid' : 'List'; lb.firstChild.src = `assets/skin/ui/buttons/layout_${layout.toLowerCase()}.png`; this.UpdateLayout(layout); };
 
     MapManager.on('initialized', () => this.UpdateMaps());
     MapManager.on('updated', () => this.UpdateMaps());
@@ -157,12 +230,13 @@ export class MapList {
   _process(delta, now) {
     const r = this.root.getBoundingClientRect(); this.width = this.root.clientWidth; this.height = this.root.clientHeight;
     const Size = { X: this.width, Y: this.height };
-    this.buttonsPerContainer = 1;   // List layout
+    this.buttonsPerContainer = this.Layout === 'List' ? 1 : Math.max(1, Math.trunc(Size.X / (this.buttonMinSize + this.Spacing)));   // (int)(Size.X / (min + Spacing)); never 0 (the C# divides by it)
 
     let scrollElasticOffset = 0;
     if ((this.TargetScroll <= 0 && this.ScrollMomentum < 0) || (this.TargetScroll >= this.ScrollLength && this.ScrollMomentum > 0)) scrollElasticOffset = this.ScrollMomentum * this.ScrollElasticity;
     this.ScrollLength = Math.max(0, Math.trunc(this.Maps.length / this.buttonsPerContainer) * (this.buttonMinSize + this.Spacing) - this.Spacing - Size.Y) + this.buttonHoverSize + this.buttonSelectSize;
     this.ScrollMomentum = lerp(this.ScrollMomentum, 0, Math.min(1, this.ScrollFriction * delta));
+    if (this.Layout === 'Grid') this.ScrollLength += this.buttonMinSize + this.buttonHoverSize + this.buttonSelectSize;
 
     const mouseY = this.mouse.screenY;
     if (this.DragScroll && this.visible()) {
@@ -208,10 +282,11 @@ export class MapList {
       let container = this.containers.get(containerIndex);
       if (!container) {
         container = this.containerCache.pop() ?? { el: Object.assign(document.createElement('div'), { className: 'mrow' }), children: [], h: 0 };
+        container.el.classList.toggle('grid', this.Layout === 'Grid');
         this.containers.set(containerIndex, container); this.mask.append(container.el);
       }
       if (button == null) {
-        button = this.mapButtonCache.pop() ?? this._setupButton(new MapButton(this));
+        button = this.mapButtonCache.pop() ?? this._setupButton(this.Layout === 'List' ? new MapButtonWide(this) : new MapButtonSquare(this));
         button.ListIndex = i; button.container = container; this.mapButtons.set(map.Name, button);
         container.children.push(button); container.el.append(button.el); container.h = container.h || button.MinimumSize;
         button.UpdateInfo(map, map.Name === this.selectedMapID);
@@ -249,11 +324,13 @@ export class MapList {
       container.h = h; container.centerY = top; container.top = top - h / 2;
       container.el.style.top = `${top - h / 2}px`; container.el.style.height = `${h}px`;
       container.rect = { left: r.left, top: r.top + top - h / 2 };
-      for (const b of container.children) {
+      // HBox (alignment centre, separation Spacing): x of each button within the row
+      const n = container.children.length, step = this.buttonMinSize + this.Spacing, x0 = (Size.X - (n * this.buttonMinSize + (n - 1) * this.Spacing)) / 2;
+      container.children.forEach((b, j) => {
         b.LightPosition = this.DisplaySelectionCursor ? cgp : [-10000, Size.Y / 2];
-        b.process(delta, now, container);
-        b.hold.style.left = `${b.holderLeft * Size.X}px`;
-      }
+        if (b.square) { b.el.style.left = `${x0 + j * step}px`; b.process(delta, now, container, x0 + j * step); }
+        else { b.process(delta, now, container); b.hold.style.left = `${b.holderLeft * Size.X}px`; }
+      });
     }
   }
 
@@ -306,9 +383,19 @@ export class MapList {
     this.Sort(); this._clear();
   }
 
+  // UpdateLayout + LayoutButton._Pressed (the button's icon shows the layout it switched to)
+  UpdateLayout(layout) {
+    if (this.Layout !== layout) { this.Layout = layout; this.Scroll = 0; this.TargetScroll = 0; }
+    const list = layout === 'List';
+    this.buttonMinSize = list ? this.WideButtonMinimumSize : this.SquareButtonMinimumSize;
+    this.buttonHoverSize = list ? this.WideButtonHoveredSize : this.SquareButtonHoveredSize;
+    this.buttonSelectSize = list ? this.WideButtonSelectedSize : this.SquareButtonSelectedSize;
+    this._clear();
+  }
+
   _setupButton(button) {
     button.onHover = (hovered) => {
-      if (hovered) { this.hoveredButton = button; this._toggleSelectionCursor(true); }   // Layout == List
+      if (hovered) { this.hoveredButton = button; if (this.Layout === 'List') this._toggleSelectionCursor(true); }
       if (button.Map.Name !== this.selectedMapID) button.UpdateOutline(hovered ? 0.5 : 0);
     };
     button.onPressed = () => {

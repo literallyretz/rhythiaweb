@@ -167,8 +167,12 @@ export class GameRenderer {
     gl.clearColor(0, 0, 0, 1); // plain black background (requested; original: project.godot default_clear_color + space planes)
     gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const proj = perspective(settings.FoV, w / h, 0.05, 4000);
-    const [cx, cy, cz] = this.cam.position;
-    const view = translate(new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]), -cx, -cy, -cz);
+    const [cx, cy, cz] = this.cam.position, [rx, ry] = this.cam.rotation ?? [0, 0, 0];
+    // view = inverse(camera transform); basis = Basis.FromEuler(rotation, YXZ) (Camera3D.Rotation; z is always 0 here)
+    const sx = Math.sin(rx), cxr = Math.cos(rx), sy = Math.sin(ry), cyr = Math.cos(ry);
+    const X = [cyr, 0, -sy], Y = [sy * sx, cxr, cyr * sx], Z = [sy * cxr, -sx, cyr * cxr];   // basis columns
+    const dot = (a) => a[0] * cx + a[1] * cy + a[2] * cz;
+    const view = new Float32Array([X[0], Y[0], Z[0], 0, X[1], Y[1], Z[1], 0, X[2], Y[2], Z[2], 0, -dot(X), -dot(Y), -dot(Z), 1]);
     const vp = mulMat(proj, view);
 
     // --- space ---

@@ -20,7 +20,7 @@ export class CameraLock {
     const parallax = s.CameraParallax;
     camera.position = [f(attempt.CursorPosition.x * f(parallax)), f(attempt.CursorPosition.y * f(parallax)), 3.75];
     camera.rotation = [0, 0, 0];
-    cursor.position = [attempt.CursorPosition.x, attempt.CursorPosition.y, 0];
+    if (Number.isFinite(attempt.CursorPosition.x) && Number.isFinite(attempt.CursorPosition.y)) cursor.position = [attempt.CursorPosition.x, attempt.CursorPosition.y, 0];
   }
 }
 

@@ -184,7 +184,8 @@ app.toMenu = async (withFade) => {
   $('menuCanvas').style.display = 'block'; $('menu').classList.remove('hidden');
   app.menuBg.t0 = performance.now(); app.menuBg.coverage = 0; app.menuBg.pitch = 0; app.menuBg.fov = 90; app.menuBg._last = null;
   app.menuRunning = true;
-  app.mainMenu?.MapInfo.ApplyPendingSelection();   // MainMenu.Load: the cached menu scene keeps its state (InfoContainer.Refresh only reloads the leaderboard, not ported)
+  app.mainMenu?.MapInfo.ApplyPendingSelection();   // MainMenu.Load: the cached menu scene keeps its state
+  app.mainMenu?.MapInfo.InfoContainer?.Refresh();   // MapInfo.InfoContainer?.Refresh(): reloads the leaderboard
   app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);

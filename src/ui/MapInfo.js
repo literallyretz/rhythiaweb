@@ -1,5 +1,5 @@
 // Port of scripts/ui/menu/play/MapInfo.cs, MapInfoContainer.cs, FlatPreview.cs, SpeedPresetButton.cs, LinkPopupButton.cs and prefabs/map_info_container.tscn.
-// Camera Mode and the Leaderboard (with its Dim and LeaderboardHide) are not ported yet; their parts of the panel stay empty.
+// Leaderboard, Dim, LeaderboardHide and ScorePanel (prefabs/score_panel.tscn) included. Replays aren't ported, so a score's VIEW button finds no replay.
 import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
@@ -9,9 +9,20 @@ import { OptionPopup } from './OptionPopup.js';
 import { binarySearch } from '../util/misc.js';
 import { GodotScroll } from './GodotScroll.js';
 import { Modifiers } from '../game/modifiers.js';
+import { CameraModes } from '../game/cameraModes.js';
+import { Leaderboard } from '../map/Leaderboard.js';
+import { padMagnitude } from '../util/misc.js';
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const formatTime = (seconds) => { const m = Math.floor(Math.abs(seconds) / 60), s = Math.floor(Math.abs(seconds) % 60); return `${seconds < 0 ? '-' : ''}${m}:${String(s).padStart(2, '0')}`; };
+// Util.String.FormatUnixTimePretty (a fresh score reads "just now ago", as in the original)
+function formatUnixTimePretty(now, time) {
+  const diff = now - time, prefix = diff < 0 ? 'in ' : '', suffix = diff > 0 ? ' ago' : '';
+  const seconds = Math.floor(diff), minutes = Math.floor(seconds / 60), hours = Math.floor(minutes / 60), days = Math.floor(hours / 24);
+  const unit = (v, u) => `${padMagnitude(v)} ${u}${v > 1 ? 's' : ''}`;
+  const f = days > 0 ? unit(days, 'day') : hours > 0 ? unit(hours, 'hour') : minutes > 0 ? unit(minutes, 'minute') : seconds > 0 ? unit(seconds, 'second') : 'just now';
+  return `${prefix}${f}${suffix}`;
+}
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const outCubic = (t) => 1 - (1 - t) ** 3, outQuart = (t) => 1 - (1 - t) ** 4, outQuint = (t) => 1 - (1 - t) ** 5;
 
@@ -76,12 +87,16 @@ class MapInfoContainer {
       </div></div></div><div class="mi-ol"></div></div>
       <div class="mi-act"><div class="mi-bg"></div><div class="mi-sc"><div class="mi-in"><div class="mi-hs">
         <div class="mi-mods"><div class="mi-lab">Modifiers</div><div class="mi-msc"><div class="mi-min"><div class="mi-mrow"></div></div></div></div>
+        <div class="mi-modes" title="Favorite"><div class="mi-lab">Camera Mode</div><div class="mi-csc"><div class="mi-cin"></div></div></div>
         <div class="mi-prev"><div class="mi-lab">Preview</div><div class="mi-pa"><div class="mi-fp"></div></div></div>
         <div class="mi-speed"><div class="mi-lab">Speed</div><div class="mi-psc"><div class="mi-pin"><div class="mi-pre"></div></div></div><div class="mi-sl mi-ssl"></div><input class="mi-ed mi-sed" spellcheck="false" autocomplete="off" placeholder="100"></div>
         <div class="mi-play"><div class="mi-lab">Play</div><div class="mi-sl mi-fsl"></div><input class="mi-ed mi-fed" placeholder="0:00" spellcheck="false" autocomplete="off"><button class="mi-start"><span>START</span><img src="assets/skin/ui/buttons/play.png" alt=""></button></div>
         <div class="mi-sep" style="left:50%;top:16px;bottom:calc(50% + 16px)"></div><div class="mi-sep" style="left:75%;top:16px;bottom:calc(50% + 16px)"></div>
         <div class="mi-sep" style="left:50%;top:calc(50% + 16px);bottom:16px"></div><div class="mi-sep" style="left:16px;right:16px;top:50%;width:auto;height:1px"></div>
-      </div></div></div><div class="mi-ol"></div></div>`;
+      </div></div></div><div class="mi-ol"></div></div>
+      <div class="mi-dim"></div><button class="mi-lbhide" tabindex="-1" hidden></button>
+      <div class="mi-lb"><div class="mi-lbbg"></div><div class="mi-lbsc"><div class="mi-lbv"></div></div>
+        <button class="mi-lbexp" tabindex="-1"><div class="mi-hov"><span>EXPAND</span></div></button><div class="mi-ol"></div></div>`;
     const q = (s) => el.querySelector(s);
     this.info = q('.mi-info'); this.actions = q('.mi-act'); this.ols = [...el.querySelectorAll('.mi-ol')]; for (const o of this.ols) o._cl = cursorLight(o);
     this.coverBackground = q('.mi-cbg'); this.cover = q('.mi-cov'); this.mainLabel = q('.mi-main .rt'); this.extraLabel = q('.mi-extra .rt');
@@ -106,6 +121,29 @@ class MapInfoContainer {
     updateMods(Lobby.Modifiers.map((m) => m.Name)); Lobby.on('ModifiersChanged', updateMods);
     new GodotScroll(msc, min, { margin: 2, onLayout: (w) => { min.style.right = `${2 + w}px`; } });
     new GodotScroll(msc, min, { axis: 'h', margin: 2, onLayout: (h) => { min.style.bottom = `${2 + h}px`; } });
+    // CameraModes.cs: one toggle button per Rhythia.CameraModes entry in a VBox inside a ScrollContainer (the panel's tooltip_text is "Favorite")
+    const csc = q('.mi-csc'), cin = csc.firstChild; this.camButtons = [];
+    const updateModes = (name) => { for (const b of this.camButtons) b.classList.toggle('on', b.dataset.mode === name); };
+    for (const mode of CameraModes) {
+      const b = document.createElement('button'); b.className = 'gb mi-cb'; b.textContent = mode.Name; b.dataset.mode = mode.Name; b.title = '';
+      b.onclick = () => { if (Lobby.CameraMode.Name !== mode.Name) Lobby.SetCameraMode(mode); else updateModes(Lobby.CameraMode.Name); };
+      cin.appendChild(b); this.camButtons.push(b);
+    }
+    updateModes(Lobby.CameraMode.Name); Lobby.on('CameraModeChanged', updateModes);
+    new GodotScroll(csc, cin, { margin: 2, onLayout: (w) => { cin.style.right = `${2 + w}px`; } });
+    // Leaderboard: Expand shows it (offset_top -100 * min(4, count), Dim to 128), LeaderboardHide / right click / an unhandled left click hide it
+    this.lb = q('.mi-lb'); this.lbv = q('.mi-lbv'); this.lbExpand = q('.mi-lbexp'); this.lbHide = q('.mi-lbhide'); this.dim = q('.mi-dim');
+    this.Leaderboard = new Leaderboard(); this.lbOff = 0; this.lbTop = -100; this.dimA = 0;
+    this.lbScroll = new GodotScroll(q('.mi-lbsc'), this.lbv, { showNever: true, stopAlways: true, onLayout: (w) => { this.lbv.style.right = `${w}px`; } });
+    const hov = (h, show) => { h._a ??= 0; tweenProp(h, '_a', show ? 1 : 0, 0.25, outQuart); };   // Hover panel modulate, Quart out 0.25 s
+    this.lbExpand.onmouseenter = () => hov(this.lbExpand.firstChild, true); this.lbExpand.onmouseleave = () => hov(this.lbExpand.firstChild, false);
+    this.lbExpand.onclick = () => this.toggleLeaderboard(true);
+    this.lbHide.onclick = () => this.toggleLeaderboard(false);
+    this.lbHide.oncontextmenu = (e) => e.preventDefault();
+    window.addEventListener('pointerdown', (e) => {
+      if (e.button === 2) this.toggleLeaderboard(false);   // _Input
+      else if (e.button === 0 && !e.target.closest?.('button,input,a,#sortPanel,#settings,.opop')) this.toggleLeaderboard(false);   // _UnhandledInput
+    }, true);
     this.favoriteButton = q('.mi-fav'); this.startButton = q('.mi-start'); this.artistLink = q('.mi-al');
 
     // ArtistLink (LinkPopupButton)
@@ -185,8 +223,8 @@ class MapInfoContainer {
     this.Map = map; this.Name = map.Name;
     // Transition
     this.posX = 0; this.posY = 0; this.scale = 1;
-    this.infoOff -= 64; this.actOff -= 80;
-    tweenProp(this, 'infoOff', 0, 0.5, outQuint); tweenProp(this, 'actOff', 0, 0.6, outQuart);
+    this.infoOff -= 64; this.actOff -= 80; this.lbOff -= 96;
+    tweenProp(this, 'infoOff', 0, 0.5, outQuint); tweenProp(this, 'actOff', 0, 0.6, outQuart); tweenProp(this, 'lbOff', 0, 0.7, outCubic);
     this.posX -= 64;   // OffsetRight = 0; Position += Vector2.Left * 64
     // Info
     const col = DIFFICULTY_COLORS[clamp(map.Difficulty, 0, DIFFICULTY_COLORS.length - 1)];
@@ -202,7 +240,43 @@ class MapInfoContainer {
     this.linkPopup.UpdateInfo(`<p style="text-align:center"><span style="color:#dddddd">This will open the following link:</span><br><span style="color:#aaaaff"><i><u>${esc(map.ArtistLink)}</u></i></span><br><br><span style="color:#dddddd">Are you sure?</span></p>`);
     // Actions
     Lobby.SetStartFrom(0);
+    this.LoadLeaderboard(map);
     this._pvSetup(map);
+  }
+  Refresh() { if (this.Map) this.LoadLeaderboard(this.Map); }   // Setup(Map) returns early for the same map
+  async LoadLeaderboard(map) {
+    const lb = (await Leaderboard.Exists(map.Name)) ? await Leaderboard.Load(map.Name) : new Leaderboard();
+    if (this.Map !== map) return;   // another map was selected meanwhile
+    this.Leaderboard = lb;
+    this.lb.style.display = lb.Valid && lb.ScoreCount > 0 ? '' : 'none';
+    this.lbv.replaceChildren();
+    const now = Date.now() / 1000;
+    for (let i = 0; i < Math.min(8, lb.ScoreCount); i++) {
+      const sc = lb.Scores[i], p = document.createElement('div'); p.className = 'sp';
+      p.innerHTML = '<div class="sp-bg"></div><div class="sp-pl"><span></span></div><div class="sp-sc"></div><div class="sp-acc"></div><div class="sp-time"></div><div class="sp-spd"></div><div class="sp-mods"></div><button class="sp-btn" tabindex="-1" hidden><div class="mi-hov"><span>VIEW</span></div></button>';
+      const g = (c) => p.querySelector(c);
+      g('.sp-bg').style.background = `rgba(255,255,255,${(i % 2 * 8) / 255})`;
+      g('.sp-pl span').textContent = sc.Player; g('.sp-acc').textContent = `${sc.Accuracy.toFixed(2)}%`; g('.sp-spd').textContent = `${sc.Speed.toFixed(2)}x`;
+      g('.sp-time').textContent = formatUnixTimePretty(now, sc.Time);
+      if (sc.Qualifies) g('.sp-sc').textContent = padMagnitude(sc.Value);
+      else { g('.sp-sc').textContent = `${formatTime(Math.max(0, sc.Progress) / 1000)} / ${formatTime(sc.MapLength / 1000)}`; g('.sp-sc').style.color = 'rgb(160,160,160)'; }
+      for (const [name, on] of Object.entries(sc.Modifiers)) if (on) { const im = document.createElement('img'); im.src = `assets/skin/modifiers/${name.toLowerCase()}.png`; im.alt = name; g('.sp-mods').appendChild(im); }
+      const btn = g('.sp-btn'), h = btn.firstChild;
+      // ScorePanel: hover label = File.Exists(replays/<AttemptID>.phxr) ? "VIEW" : "REPLAY NOT FOUND"; replays aren't ported, so never found; Replay() then does nothing
+      btn.onmouseenter = () => { h.firstChild.textContent = 'REPLAY NOT FOUND'; hov(h, true); };
+      btn.onmouseleave = () => hov(h, false);
+      btn.onclick = () => this.toggleLeaderboard(false);
+      this.lbv.appendChild(p);
+    }
+    function hov(el, show) { el._a ??= 0; tweenProp(el, '_a', show ? 1 : 0, 0.25, outQuart); }
+  }
+  toggleLeaderboard(show) {
+    this.lbExpand.hidden = show; this.lbHide.hidden = !show;
+    this.lbScroll.setShowNever(!show);   // VerticalScrollMode = show ? Auto : ShowNever
+    for (const b of this.lbv.querySelectorAll('.sp-btn')) b.hidden = !show;
+    tweenProp(this, 'lbTop', -100 * (show ? Math.min(4, this.Leaderboard.ScoreCount) : 1), 0.25, outQuart);
+    tweenProp(this, 'dimA', show ? 128 / 255 : 0, 0.25, outQuart);
+    if (!show) { const s = this.lbScroll; tweenProp(s, '_tv', 0, 0.15, (t) => t); s._tv = s.value; this._lbScrollTween = true; }
   }
   Transition(show) {   // Cubic out, parallel: modulate, position, scale (pivot = centre)
     const time = show ? 0.4 : 0.3;
@@ -220,6 +294,9 @@ class MapInfoContainer {
     const e = this.el;
     e.style.opacity = this.alpha; e.style.transform = `translate(${this.posX}px,${this.posY}px) scale(${this.scale})`;
     this.info.style.transform = `translateX(${this.infoOff}px)`; this.actions.style.transform = `translateX(${this.actOff}px)`;
+    this.lb.style.transform = `translateX(${this.lbOff}px)`; this.lb.style.top = `calc(100% + ${this.lbTop}px)`; this.dim.style.background = `rgba(0,0,0,${this.dimA})`;
+    if (this._lbScrollTween) { this.lbScroll.setValue(this.lbScroll._tv); if (this.lbScroll._tv === 0) this._lbScrollTween = false; }
+    for (const h of this.el.querySelectorAll('.mi-hov')) if (h._a !== undefined) h.style.opacity = h._a;
     for (const o of this.ols) {   // outline.gdshader: cursor_position = viewport mouse position
       const r = o.getBoundingClientRect();
       moveCursorLight(o._cl, mouse[0] - r.left, mouse[1] - r.top);

@@ -3,13 +3,13 @@ import { CameraLock } from './CameraLock.js';
 import { hexColor } from '../util/misc.js';
 
 export class Attempt {
-  constructor(map, speed, startFrom, settings, noteColors, songLengthSec = 0, mods = []) {
+  constructor(map, speed, startFrom, settings, noteColors, songLengthSec = 0, mods = [], cameraMode = new CameraLock()) {
     this.ID = `${map.Name}_${new Date().toISOString().replace(/:/g, '_')}`;
     this.Settings = settings;
     this.Map = map;
     this.Speed = speed;
     this.StartFrom = startFrom;
-    this.CameraMode = new CameraLock();
+    this.CameraMode = cameraMode;
     this.Modifiers = mods;   // the Lobby's list itself, as Game.Play passes Lobby.Modifiers
     this.Stopped = false; this.Paused = false; this.Alive = true; this.CanSkip = false; this.Qualifies = true;
     this.DeathTime = -1;
