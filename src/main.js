@@ -1,3 +1,4 @@
+import { frameLimit } from './util/frameLimit.js';   // first: wraps requestAnimationFrame before anything schedules a frame
 // Boot sequence + scene routing: Loading -> Home -> Game -> Results (-> Home / Game).
 import { hooks } from './settings.js';
 import { SettingsManager } from './SettingsManager.js';
@@ -32,6 +33,24 @@ window.__rhythia = app; // handy for debugging / the automated tests
 
 // SceneManager.Load: Transition self_modulate tween, 0.25 s, TransitionType.Quad (ease in-out)
 const fade = (to) => tweenOpacity($('fade'), to ? 1 : 0, 0.25);
+
+// Video settings. Lock FPS / FPS -> Engine.MaxFps (frameLimit); Anti Aliasing -> Msaa3D on both 3D views;
+// Fullscreen -> the Fullscreen API. A page can only go fullscreen after a click or key press, so with Fullscreen on it enters on the first
+// one; leaving it (Esc) turns the setting off, as the toggle would otherwise show a mode the window isn't in.
+function initVideoSettings() {
+  const I = app.settings.items, MSAA = { '2x (rough)': 2, '4x (smooth)': 4, '8x (smoothest)': 8 };
+  const fps = () => { frameLimit.fps = I.LockFPS.Value ? I.FPS.Value : 0; };
+  I.LockFPS.Updated.add(fps); I.FPS.Updated.add(fps); fps();
+  const aa = () => { const n = MSAA[I.AntiAliasing.Value] || 0; app.renderer?.setMsaa(n); app.menuBg?.setMsaa(n); };
+  I.AntiAliasing.Updated.add(aa); aa();
+  const isFs = () => !!document.fullscreenElement;
+  let syncing = false;
+  const apply = (on) => { if (syncing) return; if (on && !isFs()) document.documentElement.requestFullscreen?.().catch(() => {}); else if (!on && isFs()) document.exitFullscreen?.().catch(() => {}); };
+  I.Fullscreen.Updated.add(apply);
+  document.addEventListener('fullscreenchange', () => { if (I.Fullscreen.Value !== isFs()) { syncing = true; I.Fullscreen.Value = isFs(); syncing = false; } });
+  const first = () => { removeEventListener('pointerdown', first, true); removeEventListener('keydown', first, true); if (I.Fullscreen.Value) apply(true); };
+  if (I.Fullscreen.Value && !isFs()) { addEventListener('pointerdown', first, true); addEventListener('keydown', first, true); }
+}
 
 // Port-only (not in the original): watches the menu frame rate while the waves background runs. Slow 2 s windows (a fifth of the frames
 // over 20 ms) either lower the background resolution step by step (Adaptive Menu Resolution) or show a toast (8 s, one at a time) suggesting it.
@@ -113,6 +132,7 @@ async function boot() {
     if (map?.CoverBuffer) { app.coverBlob = new Blob([map.CoverBuffer], { type: 'image/png' }); app.coverURL = URL.createObjectURL(app.coverBlob); }
   });
   step('menu background', async () => { app.menuBg = new MenuBackground($('menuCanvas')); app.menuPerf = createPerf(app.menuBg.gl, app.menuBg.canvas, { title: 'MENU (home, play)', labels: ['tick', '-', 'background'], extra: () => `dom nodes ${document.getElementsByTagName('*').length}  ` }); if (app.coverBlob) await app.menuBg.setCover(app.coverBlob); });
+  step('video settings', () => initVideoSettings());
 
   await loading.setSplash('assets/textures/boot_splash.png');
   await document.fonts.load('400 16px Ubuntu');

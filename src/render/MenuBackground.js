@@ -123,8 +123,8 @@ export class MenuBackground {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.imgA); gl.uniform1i(u.uImgA, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.imgB); gl.uniform1i(u.uImgB, 1);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    // to screen
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
+    // to screen (through a multisampled buffer when Anti Aliasing is on: it smooths the water plane's edge, like Msaa3D)
+    this._ensureMs(w, h); gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo || null); gl.viewport(0, 0, w, h);
     gl.useProgram(this.blit.program); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fboTex); gl.uniform1i(this.blit.u.uTex, 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     // water plane (y = -2.01, 4000 x 4000) with the camera at the origin
@@ -138,6 +138,22 @@ export class MenuBackground {
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fboTex); gl.uniform1i(wu.uScreen, 0);
     gl.enable(gl.DEPTH_TEST); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    if (this.msFbo) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+      gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
+  }
+  setMsaa(n) { this.samples = Math.min(n, this.gl.getParameter(this.gl.MAX_SAMPLES)); this.msSize = null; }
+  _ensureMs(w, h) {
+    const gl = this.gl, n = this.samples || 0, key = `${w}x${h}x${n}`;
+    if (this.msSize === key) return; this.msSize = key;
+    if (this.msFbo) { gl.deleteFramebuffer(this.msFbo); gl.deleteRenderbuffer(this.msColor); gl.deleteRenderbuffer(this.msDepth); this.msFbo = null; }
+    if (!n) return;
+    this.msColor = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.msColor); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, gl.RGBA8, w, h);
+    this.msDepth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.msDepth); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, gl.DEPTH_COMPONENT24, w, h);
+    this.msFbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, this.msColor);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.msDepth);
   }
 }
 function mat3mul(a, b) { const o = new Array(9).fill(0); for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) for (let k = 0; k < 3; k++) o[c * 3 + r] += a[k * 3 + r] * b[c * 3 + k]; return o; }

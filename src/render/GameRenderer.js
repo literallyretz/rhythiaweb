@@ -72,7 +72,7 @@ export class GameRenderer {
     this.blitP = compile(gl, BLIT_VS, BLIT_FS, 'blit');
     this.hudP = compile(gl, HUD_VS, HUD_FS, 'hud'); this.hudTex = new Map();
     this.hdr = !!gl.getExtension('EXT_color_buffer_float') && Q.get('hdr') !== '0';   // RGBA16F render target (Forward+ 3D buffer format)
-    this.fbo = null; this.fbW = 0; this.fbH = 0;
+    this.fbo = null; this.fbW = 0; this.fbH = 0; this.samples = 0; this.msFbo = null;   // AntiAliasing: Msaa3D sample count
     this.instBuf = gl.createBuffer(); this.maxInst = 0;
   }
 
@@ -133,6 +133,22 @@ export class GameRenderer {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fbTex, 0);
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.fbDepth);
     this.fbW = w; this.fbH = h;
+    this.ensureMsaa(w, h, true);
+  }
+  // Anti Aliasing (Viewport.Msaa3D): draw into multisampled buffers, then resolve into the target texture before the output blit
+  setMsaa(n) { this.samples = Math.min(n, this.gl.getParameter(this.gl.MAX_SAMPLES)); if (this.fbW) this.ensureMsaa(this.fbW, this.fbH, true); }
+  ensureMsaa(w, h, force) {
+    const gl = this.gl;
+    if (!force && (!!this.msFbo === this.samples > 0)) return;
+    if (this.msFbo) { gl.deleteFramebuffer(this.msFbo); gl.deleteRenderbuffer(this.msColor); gl.deleteRenderbuffer(this.msDepth); this.msFbo = null; }
+    if (!this.samples) return;
+    this.msColor = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.msColor);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, this.samples, this.hdr ? gl.RGBA16F : gl.RGBA8, w, h);
+    this.msDepth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.msDepth);
+    gl.renderbufferStorageMultisample(gl.RENDERBUFFER, this.samples, gl.DEPTH_COMPONENT24, w, h);
+    this.msFbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, this.msColor);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.msDepth);
   }
 
   // BaseSpace.NoteHitColor.Lerp(LastHitColour, min(1, delta*8)) + Spaces/Grid.cs uv scrolling (3 units / s)
@@ -145,7 +161,7 @@ export class GameRenderer {
   render(attempt, runner, progress, settings, noteColors, hudItems = []) {
     const gl = this.gl; this.resize();
     const w = this.canvas.width, h = this.canvas.height;
-    this.ensureTarget(w, h); gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    this.ensureTarget(w, h); gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo || this.fbo);
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 1); // plain black background (requested; original: project.godot default_clear_color + space planes)
     gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -202,6 +218,10 @@ export class GameRenderer {
     gl.disable(gl.CULL_FACE);
     for (const e of list) e.draw();
     gl.depthMask(true);
+    if (this.msFbo) {   // MSAA resolve
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fbo);
+      gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
     // --- output: linear buffer -> sRGB screen ---
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
     gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST);

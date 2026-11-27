@@ -47,6 +47,7 @@ export class SettingsProfile {
     // OptionButton lists: NoteColors = ["skin", "default"] (+ colorsets found in the user folder), NoteMesh = getAvailableMeshes(); both reload the skin when changed
     // MenuSpace: the original list is skin, void, grid, squircles, waves, galaxy, tunnel, circulartunnel, tritunnel, vortex, solid; only the ported spaces are offered
     I.MenuSpace.List = { Values: ['skin', 'void', 'waves', 'solid'] };
+    I.AntiAliasing.List = { Values: ['Off (roughest)', '2x (rough)', '4x (smooth)', '8x (smoothest)'] };
     I.NoteColors.List = { Values: ['skin'] }; I.NoteMesh.List = { Values: ['skin'] };   // filled by refreshUserLists once the user folder is read
     I.NoteColors.UpdateAction = I.NoteMesh.UpdateAction = (_, init) => { if (!init) hooks.reloadSkin(); };
     // ImportNightlyMeshes / ImportNightlyColorsets: the browser has no user folder to drop files into, so these two slots pick files instead
