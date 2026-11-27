@@ -48,7 +48,7 @@ const menuSpeed = {
       if (s.AdaptiveMenuResolution) this.adaptive = Math.max(0.25, Math.round((this.scale(s) - 0.1) * 20) / 20);
       else if (!this.warned) {   // repeats while the menu stays slow, but never while the previous one is still on screen
         this.warned = true;
-        notify('The menu is running slow on this device. Lower "Menu Background Resolution" or turn on "Adaptive Menu Resolution" in Settings > Video.', 1, true, 8000).finally(() => { this.warned = false; });
+        notify('The menu is running slow on this device. Lower "Menu Resolution" or turn on "Adaptive Menu Resolution" in Settings > Video.', 1, true, 8000).finally(() => { this.warned = false; });
       }
     } else if (s.AdaptiveMenuResolution && this.adaptive != null && slow === 0 && ++this.calm >= 3) {   // 6 s without a slow frame: step back up
       this.calm = 0; this.adaptive = Math.min(s.MenuSpaceResolution, this.adaptive + 0.05); if (this.adaptive >= s.MenuSpaceResolution) this.adaptive = null;

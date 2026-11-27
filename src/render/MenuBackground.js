@@ -98,7 +98,7 @@ export class MenuBackground {
   }
   frame(scale = 1) {
     const gl = this.gl, now = performance.now(), time = (now - this.t0) / 1000;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * scale;   // scale: port-only Menu Background Resolution (the browser stretches the canvas)
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * scale;   // scale: port-only Menu Resolution (the browser stretches the canvas)
     const w = Math.max(2, Math.floor(this.canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(this.canvas.clientHeight * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     // Waves._Ready intro tweens: camera pitch 0->15deg & fov 90->70 (5 s, quart out); coverage 0->1 (8 s linear); echo 0->0.5 (12 s)
