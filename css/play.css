@@ -18,7 +18,7 @@
 .mb{position:absolute;inset:0;overflow:hidden}
 .mb .hold{position:absolute;top:0;right:0;bottom:0;background:rgba(0,0,0,.8784);border-radius:5px 0 0 5px;transition:background-color .15s;pointer-events:none}
 .mb.hov .hold{background:rgba(26,6,13,.8784)}
-.mb .out{position:absolute;inset:0;border-radius:4px 0 0 4px;padding:2px;box-sizing:border-box;
+.mb .out{position:absolute;inset:0;border-radius:4px 0 0 4px;padding:2px;box-sizing:border-box;background:#0d0d0d;overflow:hidden;
   -webkit-mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 .mb .cov{position:absolute;left:25%;right:2px;top:2px;bottom:2px;background-size:cover;background-position:center;opacity:.502;transition:opacity .1s;
   -webkit-mask:linear-gradient(to right,transparent 0,rgba(0,0,0,.8) 53.333%,rgba(0,0,0,.8));mask:linear-gradient(to right,transparent 0,rgba(0,0,0,.8) 53.333%,rgba(0,0,0,.8))}
@@ -133,7 +133,7 @@
 .mi-start span{position:absolute;left:0;right:36px;top:50%;transform:translateY(-50%);text-align:center;white-space:nowrap}
 .mi-start img{position:absolute;right:0;top:50%;width:32px;height:32px;transform:translateY(-50%)}
 .mi-sep{position:absolute;width:1px;background:rgba(255,255,255,.0784)}
-.mi-ol{position:absolute;inset:0;border-radius:4px;padding:2px;box-sizing:border-box;pointer-events:none;
+.mi-ol{position:absolute;inset:0;border-radius:4px;padding:2px;box-sizing:border-box;pointer-events:none;background:#0d0d0d;overflow:hidden;
   -webkit-mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
 /* OptionPopup (prefabs/option_popup.tscn): no theme above it, so Godot's default font and colours; buttons use theme.tres */
 .opop{position:absolute;inset:0;z-index:40}
@@ -144,3 +144,7 @@
 .op-hdr{font-size:20px;text-transform:uppercase}
 .op-info p{margin:0}
 .op-btns{display:flex;justify-content:center;gap:4px}.op-b{flex:1}
+
+/* outline.gdshader cursor light: a fixed 700 px gradient moved with a transform (no repaint on mouse move); fill and selection light above it */
+.mb .out .cl,.mi-ol .cl{position:absolute;left:0;top:0;width:700px;height:700px;pointer-events:none;will-change:transform}
+.mb .out .lt{position:absolute;inset:0;pointer-events:none}

@@ -4,7 +4,7 @@ import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
 import { notify } from './Toast.js';
-import { radial } from './MapList.js';
+import { cursorLight, moveCursorLight } from './MapList.js';
 import { OptionPopup } from './OptionPopup.js';
 import { binarySearch } from '../util/misc.js';
 import { GodotScroll } from './GodotScroll.js';
@@ -81,7 +81,7 @@ class MapInfoContainer {
         <div class="mi-sep" style="left:50%;top:calc(50% + 16px);bottom:16px"></div><div class="mi-sep" style="left:16px;right:16px;top:50%;width:auto;height:1px"></div>
       </div></div></div><div class="mi-ol"></div></div>`;
     const q = (s) => el.querySelector(s);
-    this.info = q('.mi-info'); this.actions = q('.mi-act'); this.ols = [...el.querySelectorAll('.mi-ol')];
+    this.info = q('.mi-info'); this.actions = q('.mi-act'); this.ols = [...el.querySelectorAll('.mi-ol')]; for (const o of this.ols) o._cl = cursorLight(o);
     this.coverBackground = q('.mi-cbg'); this.cover = q('.mi-cov'); this.mainLabel = q('.mi-main .rt'); this.extraLabel = q('.mi-extra .rt');
     // ScrollContainers (panel content margin 2; Info and Actions: mouse_force_pass_scroll_events = false) and the two RichTextLabels
     for (const sc of el.querySelectorAll('.mi-sc')) { const inn = sc.firstChild; new GodotScroll(sc, inn, { margin: 2, stopAlways: true, onLayout: (w) => { inn.style.right = `${2 + w}px`; } }); }
@@ -207,7 +207,7 @@ class MapInfoContainer {
     this.info.style.transform = `translateX(${this.infoOff}px)`; this.actions.style.transform = `translateX(${this.actOff}px)`;
     for (const o of this.ols) {   // outline.gdshader: cursor_position = viewport mouse position
       const r = o.getBoundingClientRect();
-      o.style.background = `${radial(mouse[0] - r.left, mouse[1] - r.top, '38,38,38', (t) => t.toFixed(3))},#0d0d0d`;
+      moveCursorLight(o._cl, mouse[0] - r.left, mouse[1] - r.top);
     }
     const map = this.pvMap; if (!map) return;
     const k = Math.min(1, delta * 6);
