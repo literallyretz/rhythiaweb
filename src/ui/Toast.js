@@ -23,7 +23,7 @@ function queue(t, dur, ease, prop, delta) {              // queueTween: starts a
   return t.chain;
 }
 
-export async function notify(message, severity = 0, multilineWrap = true) {
+export async function notify(message, severity = 0, multilineWrap = true, holdMs = 4000) {   // holdMs: port-only, the original always waits 4 s
   const host = document.getElementById('toasts'); if (!host) return;
   const el = document.createElement('div'); el.className = 'toast'; el.id = `NotificationToast_${nextId++}`;
   const bar = document.createElement('div'); bar.className = 'sev'; bar.style.background = COLORS[Math.min(2, Math.max(0, severity))];
@@ -35,7 +35,7 @@ export async function notify(message, severity = 0, multilineWrap = true) {
   for (const o of toasts) queue(o, 0.15, quadInOut, 'dy', -(t.h + 8));
   toasts.push(t);
   queue(t, 0.8, quadOut, 'dx', -(t.w + 8));
-  await new Promise((res) => setTimeout(res, 4000));
+  await new Promise((res) => setTimeout(res, holdMs));
   await queue(t, 0.8, quadIn, 'dx', t.w + 8);
   toasts.splice(toasts.indexOf(t), 1); el.remove(); if (!toasts.length) nextId = 0;
 }

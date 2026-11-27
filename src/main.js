@@ -34,7 +34,7 @@ window.__rhythia = app; // handy for debugging / the automated tests
 const fade = (to) => tweenOpacity($('fade'), to ? 1 : 0, 0.25);
 
 // Port-only (not in the original): watches the menu frame rate while the waves background runs. Slow 2 s windows (a fifth of the frames
-// over 20 ms) either lower the background resolution step by step (Adaptive Menu Resolution) or show one toast per session suggesting it.
+// over 20 ms) either lower the background resolution step by step (Adaptive Menu Resolution) or show a toast (8 s, one at a time) suggesting it.
 const menuSpeed = {
   adaptive: null, win: [], last: 0, warned: false, calm: 0,
   scale(s) { const set = s.MenuSpaceResolution; return s.AdaptiveMenuResolution && this.adaptive != null ? Math.min(set, this.adaptive) : set; },
@@ -46,7 +46,10 @@ const menuSpeed = {
     if (slow >= 0.2) {
       this.calm = 0;
       if (s.AdaptiveMenuResolution) this.adaptive = Math.max(0.25, Math.round((this.scale(s) - 0.1) * 20) / 20);
-      else if (!this.warned) { this.warned = true; notify('The menu is running slow on this device. Lower "Menu Background Resolution" or turn on "Adaptive Menu Resolution" in Settings > Video.', 1); }
+      else if (!this.warned) {   // repeats while the menu stays slow, but never while the previous one is still on screen
+        this.warned = true;
+        notify('The menu is running slow on this device. Lower "Menu Background Resolution" or turn on "Adaptive Menu Resolution" in Settings > Video.', 1, true, 8000).finally(() => { this.warned = false; });
+      }
     } else if (s.AdaptiveMenuResolution && this.adaptive != null && slow === 0 && ++this.calm >= 3) {   // 6 s without a slow frame: step back up
       this.calm = 0; this.adaptive = Math.min(s.MenuSpaceResolution, this.adaptive + 0.05); if (this.adaptive >= s.MenuSpaceResolution) this.adaptive = null;
     }
