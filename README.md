@@ -10,9 +10,15 @@ The main menu, the Play menu with a map list (search, sort, random), map import 
 
 ## Running it yourself
 
+- Download this project as a ZIP. (Code > Download ZIP)
+
+- Extract it into a designated folder.
+
+- Open the rhythia-web folder containing the game contents. (Right click > Open in Terminal)
+
 You need Python. In the project folder:
 
-    python3 serve.py 8000
+    py serve.py 8000
 
 Then open http://localhost:8000/ in your browser.
 
