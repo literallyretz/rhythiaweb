@@ -11,11 +11,7 @@ const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 const formatTime = (seconds) => { const m = Math.floor(Math.abs(seconds) / 60), s = Math.floor(Math.abs(seconds) % 60); return `${seconds < 0 ? '-' : ''}${m}:${String(s).padStart(2, '0')}`; };   // Util.String.FormatTime
 const LIGHT = '201,0,69', CURSOR_LIGHT = '38,38,38', OUTLINE = '#0d0d0d', GLOW = 350;
 // outline.gdshader: outline colour, mixed towards cursor_light_color (linear falloff), then towards light_color by `fill` (horizontal) and by the selection light (squared falloff)
-// cursor light: one fixed gradient on its own layer, moved with a transform, so mouse movement doesn't repaint the panel
 export const radial = (x, y, rgb, f) => `radial-gradient(circle at ${x}px ${y}px,${[0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1].map((t) => `rgba(${rgb},${f(1 - t)}) ${(t * GLOW).toFixed(1)}px`).join(',')},rgba(${rgb},0) ${GLOW}px)`;
-// Cursor light (linear falloff) as its own layer: one fixed gradient, moved with a transform, so mouse movement doesn't repaint the outline.
-export const cursorLight = (parent) => { const c = document.createElement('i'); c.className = 'cl'; c.style.background = radial(GLOW, GLOW, CURSOR_LIGHT, (t) => t.toFixed(3)); parent.appendChild(c); return c; };
-export const moveCursorLight = (c, x, y) => { const v = `translate(${(x - GLOW).toFixed(1)}px,${(y - GLOW).toFixed(1)}px)`; if (c._v !== v) { c._v = v; c.style.transform = v; } };
 
 class MapButton {   // MapButton + MapButtonWide
   constructor(list) {
@@ -25,7 +21,7 @@ class MapButton {   // MapButton + MapButtonWide
     this.stickoutOffset = 0; this.holderLeft = 0.1; this.height = this.MinimumSize;   // CustomMinimumSize.y
     const el = this.el = document.createElement('div'); el.className = 'mb';
     el.innerHTML = '<div class="hold"><div class="out"></div><div class="cov"></div><div class="fav"><i></i></div><div class="ttl"><span></span></div><div class="sepr"></div><div class="ext"></div><button class="hit" tabindex="-1"></button></div>';
-    this.hold = el.firstChild; this.out = this.hold.querySelector('.out'); this.cl = cursorLight(this.out); this.lt = document.createElement('i'); this.lt.className = 'lt'; this.out.appendChild(this.lt); this.cov = this.hold.querySelector('.cov'); this.fav = this.hold.querySelector('.fav');
+    this.hold = el.firstChild; this.out = this.hold.querySelector('.out'); this.cov = this.hold.querySelector('.cov'); this.fav = this.hold.querySelector('.fav');
     this.title = this.hold.querySelector('.ttl span'); this.extra = this.hold.querySelector('.ext');
     const hit = this.hold.querySelector('.hit');
     hit.onmouseenter = () => this.Hover(true); hit.onmouseleave = () => this.Hover(false);
@@ -76,10 +72,9 @@ class MapButton {   // MapButton + MapButtonWide
     const left = this.holderLeft * list.width, f = this.OutlineFill, [lx, ly] = this.LightPosition, rect = container.rect;
     const cx = list.mouse.x - (rect.left + left), cy = list.mouse.y - rect.top;
     // fill_glow = clamp(1 - UV.x + 2 * (fill - 0.5)): fully lit until x = 2*fill - 1, fading out by x = 2*fill
-    const lt = [radial(lx - (rect.left + left), ly - rect.top, LIGHT, (t) => (t * t).toFixed(3)),
-      `linear-gradient(to right,rgba(${LIGHT},1) ${((2 * f - 1) * 100).toFixed(2)}%,rgba(${LIGHT},0) ${(2 * f * 100).toFixed(2)}%)`].join(',');
-    if (this._lt !== lt) { this._lt = lt; this.lt.style.background = lt; }   // outline -> cursor light -> fill and selection light, as in the shader
-    moveCursorLight(this.cl, cx, cy);
+    this.out.style.background = [radial(lx - (rect.left + left), ly - rect.top, LIGHT, (t) => (t * t).toFixed(3)),
+      `linear-gradient(to right,rgba(${LIGHT},1) ${((2 * f - 1) * 100).toFixed(2)}%,rgba(${LIGHT},0) ${(2 * f * 100).toFixed(2)}%)`,
+      radial(cx, cy, CURSOR_LIGHT, (t) => t.toFixed(3)), OUTLINE].join(',');
   }
 }
 
