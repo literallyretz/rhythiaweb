@@ -70,7 +70,8 @@ export class MenuBackground {
     this.pitchTarget = 15 * Math.PI / 180;
   }
   async setCover(blob) {
-    const img = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const img = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).catch((e) => { this.coverAvg = null; throw e; });
+    this.coverAvg = averageColor(img);   // Solid.UpdateMap: average of the cover's non-transparent pixels
     this.imgB = this.imgA; this.imgA = makeTexture(this.gl, img, { srgb: true }); this.imageLerp = 0; this.lerpStart = performance.now();
   }
   _ensureFbo(w, h) {
@@ -83,9 +84,21 @@ export class MenuBackground {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fboTex, 0);
   }
-  frame() {
+  // void.tscn / solid.tscn: background_mode = custom colour, no geometry. Solid: cover average Darkened(0.9), else its default colour; energy 1.2
+  clear(space) {
+    const gl = this.gl, w = Math.max(2, Math.floor(this.canvas.clientWidth)), h = Math.max(2, Math.floor(this.canvas.clientHeight));
+    if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+    let c = [0, 0, 0];
+    if (space === 'solid') {
+      const base = this.coverAvg ? this.coverAvg.map((v) => v * 0.1) : [0.011764706, 0, 0.09019608];   // Color.Darkened(0.9) = rgb * (1 - 0.9)
+      c = base.map((v) => { const lin = v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); const o = Math.min(1, lin * 1.2);
+        return o <= 0.0031308 ? o * 12.92 : 1.055 * Math.pow(o, 1 / 2.4) - 0.055; });   // background_energy_multiplier 1.2 in linear, then back to sRGB
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); gl.clearColor(c[0], c[1], c[2], 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+  frame(scale = 1) {
     const gl = this.gl, now = performance.now(), time = (now - this.t0) / 1000;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * scale;   // scale: port-only Menu Background Resolution (the browser stretches the canvas)
     const w = Math.max(2, Math.floor(this.canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(this.canvas.clientHeight * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     // Waves._Ready intro tweens: camera pitch 0->15deg & fov 90->70 (5 s, quart out); coverage 0->1 (8 s linear); echo 0->0.5 (12 s)
@@ -129,3 +142,9 @@ export class MenuBackground {
 }
 function mat3mul(a, b) { const o = new Array(9).fill(0); for (let c = 0; c < 3; c++) for (let r = 0; r < 3; r++) for (let k = 0; k < 3; k++) o[c * 3 + r] += a[k * 3 + r] * b[c * 3 + k]; return o; }
 function mat4mul(a, b) { const o = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k]; return o; }
+function averageColor(img) {
+  const c = new OffscreenCanvas(img.width, img.height), g = c.getContext('2d', { colorSpace: 'srgb' }); g.drawImage(img, 0, 0);
+  const d = g.getImageData(0, 0, img.width, img.height).data; let r = 0, gg = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) { if (d[i + 3] === 0) continue; r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; }
+  return n ? [r / n / 255, gg / n / 255, b / n / 255] : null;
+}

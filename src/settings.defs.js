@@ -19,7 +19,7 @@ export const DEFS = [
   { id: "HUDParallax", type: "double", def: 0, title: "HUD Parallax", desc: "(Not implemented) Adjusts the HUD parallax", section: "Gameplay", slider: { step: f(0.05), min: f(0.0), max: f(1.0) }, ui: true },
   { id: "FoV", type: "double", def: 70, title: "Field of View", desc: "Adjusts the field of view", section: "Gameplay", slider: { step: f(1.0), min: f(60.0), max: f(120.0) }, ui: true },
   { id: "Skin", type: "string", def: "default", title: "Skin", desc: "Selected skin for the game", section: "Visual" },
-  { id: "MenuSpace", type: "string", def: "skin", title: "Menu Space", desc: "Overrides the skin's background space for the menu", section: "Visual" },
+  { id: "MenuSpace", type: "string", def: "skin", title: "Menu Space", desc: "Overrides the skin's background space for the menu", section: "Visual", ui: true },
   { id: "GameSpace", type: "string", def: "skin", title: "Game Space", desc: "Overrides the skin's background space for gameplay", section: "Visual" },
   { id: "SpaceHitEffects", type: "bool", def: true, title: "Space Hit Effects", desc: "Toggles note hit effects for the game space", section: "Visual", ui: true },
   { id: "SpaceEffects", type: "bool", def: true, title: "Space Effects", desc: "Toggles non-hit effects for the game space", section: "Visual", ui: true },
@@ -48,6 +48,9 @@ export const DEFS = [
   { id: "LockFPS", type: "bool", def: false, title: "Lock FPS", desc: "Locks maximum frames per second", section: "Video" },
   { id: "FPS", type: "int", def: 240, title: "FPS", desc: "Adjusts maximum frames per second, we recommend this being 2x your refresh rate", section: "Video", slider: { step: f(5.0), min: f(30.0), max: f(1000.0) } },
   { id: "VSyncMenus", type: "bool", def: true, title: "V-Sync in Menus", desc: "Toggles V-Sync when in menus", section: "Video" },
+  // Port-only (not in SettingsProfile.cs): menu background render scale, and an automatic drop when the menu runs slow
+  { id: "MenuSpaceResolution", type: "double", def: 0.75, title: "Menu Background Resolution", desc: "(Web port) Render scale of the menu background. Lower it if the menu runs slow", section: "Video", slider: { step: 0.05, min: 0.25, max: 1 }, ui: true },
+  { id: "AdaptiveMenuResolution", type: "bool", def: false, title: "Adaptive Menu Resolution", desc: "(Web port) Lowers the menu background resolution automatically when the menu runs slow", section: "Video", ui: true },
   { id: "VolumeMaster", type: "double", def: 50, title: "Master Volume", desc: "Master volume control for all audio", section: "Audio", slider: { step: f(1.0), min: f(0.0), max: f(100.0) }, ui: true },
   { id: "VolumeMusic", type: "double", def: 50, title: "Music Volume", desc: "Audio control for the music", section: "Audio", slider: { step: f(1.0), min: f(0.0), max: f(100.0) }, ui: true },
   { id: "VolumeSFX", type: "double", def: 50, title: "SFX Volume", desc: "Audio control for other sound effects", section: "Audio", slider: { step: f(1.0), min: f(0.0), max: f(100.0) }, ui: true },

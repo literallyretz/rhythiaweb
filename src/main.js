@@ -33,6 +33,26 @@ window.__rhythia = app; // handy for debugging / the automated tests
 // SceneManager.Load: Transition self_modulate tween, 0.25 s, TransitionType.Quad (ease in-out)
 const fade = (to) => tweenOpacity($('fade'), to ? 1 : 0, 0.25);
 
+// Port-only (not in the original): watches the menu frame rate while the waves background runs. Slow 2 s windows (a fifth of the frames
+// over 20 ms) either lower the background resolution step by step (Adaptive Menu Resolution) or show one toast per session suggesting it.
+const menuSpeed = {
+  adaptive: null, win: [], last: 0, warned: false, calm: 0,
+  scale(s) { const set = s.MenuSpaceResolution; return s.AdaptiveMenuResolution && this.adaptive != null ? Math.min(set, this.adaptive) : set; },
+  sample(now, s) {
+    if (document.hidden || !this.last || now - this.last > 250) { this.last = now; this.win = []; return; }   // tab switches and hitches aren't the background
+    this.win.push(now - this.last); this.last = now;
+    if (this.win.reduce((a, b) => a + b, 0) < 2000) return;
+    const slow = this.win.filter((x) => x > 20).length / this.win.length; this.win = [];
+    if (slow >= 0.2) {
+      this.calm = 0;
+      if (s.AdaptiveMenuResolution) this.adaptive = Math.max(0.25, Math.round((this.scale(s) - 0.1) * 20) / 20);
+      else if (!this.warned) { this.warned = true; notify('The menu is running slow on this device. Lower "Menu Background Resolution" or turn on "Adaptive Menu Resolution" in Settings > Video.', 1); }
+    } else if (s.AdaptiveMenuResolution && this.adaptive != null && slow === 0 && ++this.calm >= 3) {   // 6 s without a slow frame: step back up
+      this.calm = 0; this.adaptive = Math.min(s.MenuSpaceResolution, this.adaptive + 0.05); if (this.adaptive >= s.MenuSpaceResolution) this.adaptive = null;
+    }
+  },
+};
+
 // Port-only notice (not in the original): phones are unsupported; this warns but never blocks.
 const phone = navigator.userAgentData?.mobile ?? /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 if (phone || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent))) {   // last test: iPadOS reports a Mac UA
@@ -145,7 +165,14 @@ app.toMenu = async (withFade) => {
   app.menuCursor?.UpdateVisible(app.settings.UseCursorInMenus);   // Input.MouseMode = UseCursorInMenus ? Hidden : Visible
   app.sound.refreshMenuMusicPlayback();
   if (app.settings.AutoplayJukebox && !app.sound.song.playing && app.sound.Map != null) app.sound.playJukeboxIndex(app.sound.JukeboxIndex);
-  const loop = () => { if (!app.menuRunning) return; const pf = app.menuPerf; pf?.begin(); const t = pf ? performance.now() : 0; if (!offBackground) app.menuBg.frame(); pf?.end(app.tickMs || 0, 0, performance.now() - t, 0); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
+  const loop = (now) => {
+    if (!app.menuRunning) return; const pf = app.menuPerf; pf?.begin(); const t = pf ? performance.now() : 0;
+    const space = app.settings.MenuSpace === 'skin' ? 'waves' : app.settings.MenuSpace;   // SkinManager: "skin" = the skin's MenuSpace (default skin: waves)
+    if (offBackground) {} else if (space === 'waves') app.menuBg.frame(menuSpeed.scale(app.settings)); else app.menuBg.clear(space);
+    pf?.end(app.tickMs || 0, 0, performance.now() - t, 0);
+    if (space === 'waves') menuSpeed.sample(now, app.settings);
+    requestAnimationFrame(loop);
+  }; requestAnimationFrame(loop);
   await fade(0);
 };
 
