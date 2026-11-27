@@ -18,7 +18,7 @@ Then open http://localhost:8000/ in your browser.
 
 ## How I made it
 
-This is a big game to rebuild by hand, and doing every line myself would have taken me a very long time. So I used Claude Sonnet 5.5 (Anthropic) as a tool to do the heavy lifting. It read the original C# / Godot source and translated it piece by piece into JavaScript, and I decided what to build, what order to do it in and how closely to stick to the original. Then I ran it and tested it in the browser, found what was off and sent it back to be fixed. Most of the code was written by Claude, so I'd rather say that up front than have you wonder.
+This is a big game to rebuild by hand, and doing every line myself would have taken me a very long time. So I used Claude Sonnet 5.5 and Opus 5.5 (Anthropic) as a tool to do the heavy lifting. It read the original C# / Godot source and translated it piece by piece into JavaScript, and I decided what to build, what order to do it in and how closely to stick to the original. Then I ran it and tested it in the browser, found what was off and sent it back to be fixed. Most of the code was written by Claude, so I'd rather say that up front than have you wonder.
 
 If you want the nerdy details (how it's put together and everywhere it differs from the original), they're in [TECHNICAL.md](TECHNICAL.md).
 
