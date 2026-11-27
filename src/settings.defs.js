@@ -50,7 +50,7 @@ export const DEFS = [
   { id: "VSyncMenus", type: "bool", def: true, title: "V-Sync in Menus", desc: "Toggles V-Sync when in menus", section: "Video" },
   { id: "AntiAliasing", type: "string", def: "Off (roughest)", title: "Anti Aliasing", desc: "Smoothes edges, at the cost of performance", section: "Video", ui: true },
   // Port-only (not in SettingsProfile.cs): menu background render scale, and an automatic drop when the menu runs slow
-  { id: "MenuSpaceResolution", type: "double", def: 0.75, title: "Menu Resolution", desc: "(Web port) Render scale of the menu background. Lower it if the menu runs slow", section: "Video", slider: { step: 0.05, min: 0.25, max: 1 }, ui: true },
+  { id: "MenuSpaceResolution", type: "double", def: 0.875, title: "Menu Resolution", desc: "(Web port) Render scale of the menu background. Lower it if the menu runs slow", section: "Video", slider: { step: 0.05, min: 0.25, max: 1 }, ui: true },
   { id: "AdaptiveMenuResolution", type: "bool", def: false, title: "Adaptive Menu Resolution", desc: "(Web port) Lowers the menu background resolution automatically when the menu runs slow", section: "Video", ui: true },
   { id: "VolumeMaster", type: "double", def: 50, title: "Master Volume", desc: "Master volume control for all audio", section: "Audio", slider: { step: f(1.0), min: f(0.0), max: f(100.0) }, ui: true },
   { id: "VolumeMusic", type: "double", def: 50, title: "Music Volume", desc: "Audio control for the music", section: "Audio", slider: { step: f(1.0), min: f(0.0), max: f(100.0) }, ui: true },
