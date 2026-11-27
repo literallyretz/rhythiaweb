@@ -1,7 +1,8 @@
 /* Menus/Play (scenes/main_menu.tscn) + prefabs/map_button_wide.tscn + themes/theme.tres. 1 Godot px = 1 CSS px. */
 #plBg{position:absolute;inset:0;border-radius:3px 0 0 3px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}   /* ui_blur.gdshader (brightness 1) */
-#plTile{position:absolute;inset:0;background:url(../assets/skin/ui/background_tile.png);background-size:32px 32px;image-rendering:pixelated;animation:plTile 1s linear infinite}   /* background_tile.gdshader: UV.x -= TIME */
-@keyframes plTile{to{background-position-x:-32px}}
+#plTile{position:absolute;inset:0;overflow:hidden;border-radius:inherit}
+#plTile::before{content:"";position:absolute;left:0;top:0;bottom:0;right:-32px;background:url(../assets/skin/ui/background_tile.png);background-size:32px 32px;image-rendering:pixelated;animation:plTile 1s linear infinite;will-change:transform}   /* background_tile.gdshader: UV.x -= TIME */
+@keyframes plTile{to{transform:translateX(-32px)}}   /* same 32 px/s scroll as background-position, but on the compositor: no repaint per frame */
 
 /* MapList: anchor_left .5, anchor_right 1, offset_top 128, offset_right -8, offset_bottom -80 */
 #mapList{position:absolute;left:50%;right:8px;top:128px;bottom:80px}
