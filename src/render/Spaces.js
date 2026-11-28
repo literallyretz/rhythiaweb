@@ -204,7 +204,7 @@ class Scene {
 }
 
 export class SpaceRenderer {
-  constructor(gl, app) {
+  constructor(gl, app, game = false) {
     this.gl = gl; this.app = app; this.scenes = new Map(); this.textures = new Map(); this.meshes = new Map(); this.objCache = new Map();
     this.prog = compile(gl, VS, FS, 'space'); this.skyP = compile(gl, SKY_VS, SKY_FS, 'spaceSky'); this.blitP = compile(gl, BLIT_VS, BLIT_FS, 'spaceBlit');
     this.samples = ({ '2x (rough)': 2, '4x (smooth)': 4, '8x (smoothest)': 8 }[app.settings.items.AntiAliasing.Value] || 0); this.samples = Math.min(this.samples, gl.getParameter(gl.MAX_SAMPLES));
@@ -214,8 +214,8 @@ export class SpaceRenderer {
     this.white = makeTexture(gl, new ImageData(new Uint8ClampedArray([255, 255, 255, 255]), 1, 1), { srgb: true });
     this.hdr = !!gl.getExtension('EXT_color_buffer_float');
     this.startMs = performance.now(); this.last = null;
-    this.coverAvg = app.menuBg?.coverAvg ?? null;   // BaseSpace.UpdateMap
-    if (app.menuBg) app.menuBg.onCover = (avg) => { this.coverAvg = avg; this.scenes.get('squircles')?.updateCover(avg); };
+    this.coverAvg = game ? null : app.menuBg?.coverAvg ?? null;   // BaseSpace.UpdateMap (while Playing the cover isn't used)
+    if (app.menuBg && !game) app.menuBg.onCover = (avg) => { this.coverAvg = avg; this.scenes.get('squircles')?.updateCover(avg); };
   }
   scene(name) {
     if (!this.scenes.has(name)) {
@@ -273,46 +273,28 @@ export class SpaceRenderer {
   // per-frame: scripts, then draw
   frame(name, canvas, scale, settings) {
     const gl = this.gl, s = this.scene(name), now = performance.now(), dt = Math.min(0.1, this.last == null ? 0 : (now - this.last) / 1000); this.last = now;
-    s.process?.(dt, settings, now - this.startMs);
-    for (const n of s.nodes.values()) if (n.particles) n.particles.process(dt);
+    this.step(s, dt, settings, now - this.startMs);
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5) * scale;
     const w = Math.max(2, Math.floor(canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     this.ensureTarget(w, h);
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo || this.fbo); gl.viewport(0, 0, w, h);
-    const env = s.env, mode = env.background_mode ?? 0;
-    // background: 0 = clear colour (project default_clear_color), 1 = custom colour x energy, 2 = sky
-    let bg = mode === 1 ? linColor(env.background_color ?? [0, 0, 0, 1]).map((v, i) => (i < 3 ? v * (env.background_energy_multiplier ?? 1) : v)) : linColor([0.0885599, 0.08855992, 0.08855987, 1]);
+    const bg = this.background(s);
     gl.clearColor(bg[0], bg[1], bg[2], 1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const fov = s.camera.fov, aspect = w / h, f = 1 / Math.tan(fov * DEG / 2), n = 0.05, fa = 4000;
     const proj = [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (fa + n) / (n - fa), -1, 0, 0, (2 * fa * n) / (n - fa), 0];
     const cp = s.camera.pos, view = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -cp[0], -cp[1], -cp[2], 1];
-    const fogOn = !!env.fog_enabled, fogColor = linColor(env.fog_light_color ?? [0.518, 0.553, 0.608, 1]).slice(0, 3).map((v) => v * (env.fog_light_energy ?? 1));
-    if (mode === 2) this.drawSky(s, env, fogOn, fogColor, f, aspect);
-    // collect draws
-    const draws = [];
-    const visit = (node, parent) => {
-      if (!node.visible) return;
-      const world = mul(parent, node.local);
-      if (node.type === 'MeshInstance3D' && node.props.mesh) this.addMesh(s, node, world, view, draws);
-      if (node.particles) this.addParticles(s, node, world, view, cp, draws);
-      for (const c of node.children) visit(c, world);
-    };
-    visit(s.root, ident());
-    const P = this.prog, u = P.u; gl.useProgram(P.program);
-    gl.uniformMatrix4fv(u.uProj, false, proj); gl.uniformMatrix4fv(u.uView, false, view);
-    gl.uniform1i(u.uTex, 0); gl.uniform3fv(u.uFogColor, fogColor);
-    gl.uniform1f(u.uFogBegin, env.fog_depth_begin ?? 10); gl.uniform1f(u.uFogEnd, env.fog_depth_end > 0 ? env.fog_depth_end : fa); gl.uniform1f(u.uFogCurve, env.fog_depth_curve ?? 1); gl.uniform1f(u.uFogDensity, env.fog_density ?? 0.01);
+    const fog = this.fog(s);
+    if ((s.env.background_mode ?? 0) === 2) this.drawSky(s, s.env, fog.on, fog.color, f, aspect);
+    const draws = this.collect(s, view, cp);
+    this.bindScene(proj, view, fog);
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
     const opaque = draws.filter((d) => !d.transparent), trans = draws.filter((d) => d.transparent);
     trans.sort((a, b) => (a.priority - b.priority) || (b.depth - a.depth));
     gl.disable(gl.BLEND); gl.depthMask(true);
-    for (const d of opaque) this.draw(d, fogOn);
+    for (const d of opaque) this.draw(d, fog.on);
     gl.enable(gl.BLEND);
-    for (const d of trans) {
-      if (d.add) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE); else gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      gl.depthMask(!!d.depthAlways); this.draw(d, fogOn);
-    }
+    for (const d of trans) this.drawTransparent(d, fog.on);
     gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.CULL_FACE); gl.frontFace(gl.CCW);
     if (this.msFbo) {   // Anti Aliasing (Msaa3D): resolve the multisampled buffer into the frame texture
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fbo);
@@ -322,6 +304,68 @@ export class SpaceRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); gl.disable(gl.DEPTH_TEST);
     gl.useProgram(this.blitP.program); gl.bindVertexArray(this.full); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fbTex); gl.uniform1i(this.blitP.u.uTex, 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.bindVertexArray(null);
+  }
+  // Node._Process of the space and its particle systems
+  step(s, dt, settings, ms) {
+    s.process?.(dt, settings, ms);
+    for (const n of s.nodes.values()) if (n.particles) n.particles.process(dt);
+  }
+  // background: 0 = clear colour (project default_clear_color), 1 = custom colour x energy, 2 = sky (drawn over the clear)
+  background(s) {
+    const env = s.env;
+    return (env.background_mode ?? 0) === 1 ? linColor(env.background_color ?? [0, 0, 0, 1]).map((v, i) => (i < 3 ? v * (env.background_energy_multiplier ?? 1) : v)) : linColor([0.0885599, 0.08855992, 0.08855987, 1]);
+  }
+  fog(s) {
+    const env = s.env;
+    return { on: !!env.fog_enabled, color: linColor(env.fog_light_color ?? [0.518, 0.553, 0.608, 1]).slice(0, 3).map((v) => v * (env.fog_light_energy ?? 1)),
+      begin: env.fog_depth_begin ?? 10, end: env.fog_depth_end > 0 ? env.fog_depth_end : 4000, curve: env.fog_depth_curve ?? 1, density: env.fog_density ?? 0.01 };
+  }
+  collect(s, view, cp) {
+    const draws = [];
+    const visit = (node, parent) => {
+      if (!node.visible) return;
+      const world = mul(parent, node.local);
+      if (node.type === 'MeshInstance3D' && node.props.mesh) this.addMesh(s, node, world, view, draws);
+      if (node.particles) this.addParticles(s, node, world, view, cp, draws);
+      for (const c of node.children) visit(c, world);
+    };
+    visit(s.root, ident());
+    return draws;
+  }
+  bindScene(proj, view, fog) {
+    const gl = this.gl, u = this.prog.u; gl.useProgram(this.prog.program);
+    gl.uniformMatrix4fv(u.uProj, false, proj); gl.uniformMatrix4fv(u.uView, false, view);
+    gl.uniform1i(u.uTex, 0); gl.uniform3fv(u.uFogColor, fog.color);
+    gl.uniform1f(u.uFogBegin, fog.begin); gl.uniform1f(u.uFogEnd, fog.end); gl.uniform1f(u.uFogCurve, fog.curve); gl.uniform1f(u.uFogDensity, fog.density);
+  }
+  drawTransparent(d, fogOn) {
+    const gl = this.gl;
+    if (d.add) gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE, gl.ZERO, gl.ONE); else gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(!!d.depthAlways); this.draw(d, fogOn);
+  }
+
+  // ---- gameplay: game.tscn (UseGameSpace, AddSpaceAsChild) adds skin.GameSpace to the Game scene, so it is part of the same world as the notes and
+  // is seen by the Runner's Camera3D (BaseSpace.UpdateState(true): Camera.Current = !Playing); its WorldEnvironment is the world's environment ----
+  // SceneManager.addSpace -> BaseSpace.Load (NoteHitColor = skin.NoteColors[^1]); Game: UpdateState(true), UpdateMap(map)
+  gameBegin(name) { const s = this.scene(name); s.playing = true; s.hit = hitColor(this); s.updateState?.(); return s; }
+  // BaseSpace._Process: if (Playing && SpaceHitEffects) NoteHitColor = NoteHitColor.Lerp(LastHitColour, min(1, delta * 8)); then the space's own _Process
+  gameStep(s, dt, settings, attempt) {
+    if (settings.SpaceHitEffects && attempt?.LastHitColour) { const t = Math.min(1, dt * 8), c = attempt.LastHitColour; s.hit = s.hit.map((v, i) => v + ((c[i] ?? 1) - v) * t); }
+    this.step(s, dt, settings, performance.now());   // Time.GetTicksMsec
+  }
+  // opaque pass now; returns the transparent draws for the caller's alpha list (sorted together with the game's own objects)
+  gameDraw(s, proj, view, cp, invRot, sky) {
+    const gl = this.gl, fog = this.fog(s);
+    if (sky && (s.env.background_mode ?? 0) === 2) this.drawSky(s, s.env, fog.on, fog.color, proj[5], proj[5] / proj[0], invRot);
+    const draws = this.collect(s, view, cp);
+    this.bindScene(proj, view, fog);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.BLEND); gl.depthMask(true);
+    for (const d of draws) if (!d.transparent) this.draw(d, fog.on);
+    gl.disable(gl.CULL_FACE); gl.frontFace(gl.CCW);
+    return draws.filter((d) => d.transparent).map((d) => ({ p: d.priority, d: d.depth, draw: () => {
+      this.bindScene(proj, view, fog); this.drawTransparent(d, fog.on);
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.disable(gl.CULL_FACE); gl.frontFace(gl.CCW);
+    } }));
   }
   setMsaa(n) { this.samples = Math.min(n, this.gl.getParameter(this.gl.MAX_SAMPLES)); this.size = null; }
   ensureTarget(w, h) {
@@ -342,10 +386,10 @@ export class SpaceRenderer {
       gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, this.msColor); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.msDepth);
     }
   }
-  drawSky(s, env, fogOn, fogColor, f, aspect) {
+  drawSky(s, env, fogOn, fogColor, f, aspect, invRot = [1, 0, 0, 0, 1, 0, 0, 0, 1]) {
     const gl = this.gl, sky = this.resolveSky(s); if (!sky) return;
     gl.disable(gl.DEPTH_TEST); gl.useProgram(this.skyP.program); const u = this.skyP.u;
-    gl.uniformMatrix3fv(u.uInvViewRot, false, [1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    gl.uniformMatrix3fv(u.uInvViewRot, false, invRot);
     const [rx, ry, rz] = s.skyRotation; gl.uniformMatrix3fv(u.uSkyRot, false, eulerBasis(rx, ry, rz));
     gl.uniform1f(u.uTanHalf, 1 / f); gl.uniform1f(u.uAspect, aspect); gl.uniform1i(u.uFogOn, fogOn ? 1 : 0); gl.uniform3fv(u.uFogColor, fogColor); gl.uniform1f(u.uSkyAffect, env.fog_sky_affect ?? 1);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sky); gl.uniform1i(u.uTex, 0);
@@ -422,14 +466,15 @@ const linColorNo = (c) => [c[0], c[1], c[2], c[3] ?? 1];   // material albedo co
 function setup(s, r) {
   const set = (ref, f) => { const m = s.material(ref); if (m) f(m); };
   const meshMat = (path) => s.resolve(s.node(path).props.mesh)?.material;
+  const hc = () => (s.playing ? s.hit : hitColor(r));   // NoteHitColor: lerped while Playing (BaseSpace._Process), else the skin's last note colour
   switch (s.name) {
-    case 'grid': s.process = (dt) => set(meshMat('Top'), (m) => { m.albedo_color = hitColor(r); m.uvOffset[1] += dt * 3; }); break;   // Grid._Process
+    case 'grid': s.process = (dt) => set(meshMat('Top'), (m) => { m.albedo_color = hc(); m.uvOffset[1] += dt * 3; }); break;   // Grid._Process
     case 'tunnel': case 'circulartunnel': {
       const rings = s.node('Rings'), o = rings.local.slice();
       s.process = (dt, st, ms) => {
         if (st.SpaceEffects) { rings.local = o.slice(); rings.local[14] = ((ms / 1000) * st.ApproachRate / 2) % 52.5; }   // Rings.Position = Back * (ticks / 1000 * AR / 2) % 52.5
-        set(meshMat('Rings/1'), (m) => { m.albedo_color = hitColor(r); });
-        if (s.name === 'tunnel') { set(meshMat('Rings/2'), (m) => { m.albedo_color = hitColor(r); }); set(meshMat('Road'), (m) => { m.albedo_color = hitColor(r); }); }
+        set(meshMat('Rings/1'), (m) => { m.albedo_color = hc(); });
+        if (s.name === 'tunnel') { set(meshMat('Rings/2'), (m) => { m.albedo_color = hc(); }); set(meshMat('Road'), (m) => { m.albedo_color = hc(); }); }
       };
       break;
     }
@@ -437,7 +482,7 @@ function setup(s, r) {
       const t = s.node('Tunnel'), reset = t.local.slice(), mat = s.material(t.props.material_override), white = mat.albedo_color ?? [1, 1, 1, 1];
       s.process = (dt, st) => {
         if (t.local[14] < 148 && st.SpaceEffects) t.local[14] += st.ApproachRate * dt / 6; else t.local = reset.slice();
-        mat.albedo_color = st.SpaceHitEffects ? hitColor(r) : white;
+        mat.albedo_color = st.SpaceHitEffects ? hc() : white;
       };
       break;
     }
@@ -479,7 +524,9 @@ function setup(s, r) {
         near.colorOverride = light; far.colorOverride = light;
       };
       s.updateCover(r.coverAvg);
-      s.process = () => { s.camera.pos = [(r.mouseX ?? 0) / 40000, (r.mouseY ?? 0) / 40000, 0]; };
+      // Playing: updateColor(NoteHitColor) every frame (background = Darkened(0.9) whatever the cover); else the camera follows the mouse
+      const updateColor = (c) => { s.env.background_color = [c[0] * 0.1, c[1] * 0.1, c[2] * 0.1, 1]; const l = [c[0] + (1 - c[0]) * 0.1, c[1] + (1 - c[1]) * 0.1, c[2] + (1 - c[2]) * 0.1, c[3] ?? 1]; near.colorOverride = l; far.colorOverride = l; };
+      s.process = () => { if (s.playing) updateColor(s.hit); else s.camera.pos = [(r.mouseX ?? 0) / 40000, (r.mouseY ?? 0) / 40000, 0]; };
       break;
     }
   }

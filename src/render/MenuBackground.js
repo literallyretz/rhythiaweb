@@ -26,14 +26,15 @@ void main(){
   color = mix(vec3(0.0), color, min(1.0, 2.0 * uCoverage - abs(eye.y)));
   o = vec4(lin2srgb(color), 1.0);
 }`;
-const BLIT_FS = `#version 300 es
-precision highp float; in vec2 vNdc; uniform sampler2D uTex; out vec4 o; void main(){ o = vec4(texture(uTex, vNdc*0.5+0.5).rgb, 1.0); }`;
+const BLIT_FS = FS_HEAD + `
+in vec2 vNdc; uniform sampler2D uTex; uniform bool uLin; out vec4 o;   // uLin: into the game's linear frame
+void main(){ vec3 c = texture(uTex, vNdc*0.5+0.5).rgb; o = vec4(uLin ? srgb2lin(c) : c, 1.0); }`;
 const WATER_VS = `#version 300 es
 layout(location=0) in vec2 aPos; uniform mat4 uVP; uniform float uY, uSize; out vec3 vWorld; out vec2 vUV;
 void main(){ vec3 p = vec3(aPos.x * uSize, uY, aPos.y * uSize); vWorld = p; vUV = aPos * 0.5 + 0.5; gl_Position = uVP * vec4(p, 1.0); }`;
 const WATER_FS = FS_HEAD + `
 in vec3 vWorld; in vec2 vUV; uniform vec3 uCam; uniform vec2 uRes; uniform float uTime, uEcho; uniform sampler2D uScreen;
-out vec4 o;
+uniform bool uLin; out vec4 o;
 float fresnelEffect(float amount, vec3 normal, vec3 view){ return pow(1.0 - clamp(dot(normalize(normal), normalize(view)), 0.0, 1.0), amount); }
 void main(){
   vec3 V = uCam - vWorld;
@@ -46,7 +47,7 @@ void main(){
   color = mix(color, vec3(0.1, 0.05, 0.1), fresnel * 0.25);
   float d = distance(vUV, vec2(0.5));
   if (d < uEcho * 2.0 && d > uEcho - 0.01) color = mix(srgb2lin(vec3(1.0, 0.2, 0.25)), color, min(1.0, uEcho * 5.0));
-  o = vec4(lin2srgb(color), 1.0);
+  o = vec4(uLin ? color : lin2srgb(color), 1.0);
 }`;
 
 const ease = { quartOut: (t) => 1 - Math.pow(1 - t, 4) };
@@ -143,6 +144,45 @@ export class MenuBackground {
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
       gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
     }
+  }
+  // ---- gameplay (Waves as the game space: same world as the notes, seen by the Runner's Camera3D) ----
+  // SceneManager.addSpace + Game: UpdateState(true), then UpdateMap(map). Waves._Ready (the first time this space enters the tree) tweens coverage
+  // 0 -> 1 (8 s) and echo 0 -> 0.5 (12 s). UpdateState(true): SpaceEffects off -> both images empty; else image_b = image_a, image_a = Cover, image_lerp = 0,
+  // where Cover is still the previous UpdateMap's (this map's cover is only stored: the sky tween runs when not Playing)
+  gameBegin(settings, coverBuffer) {
+    this.readyAt ??= performance.now();
+    if (!settings.SpaceEffects) { this.imgA = this.imgB = this.empty; } else { this.imgB = this.imgA; this.imgA = this.coverTex ?? this.empty; }
+    this.imageLerp = 0;
+    const blob = new Blob([coverBuffer ?? new Uint8Array()], { type: 'image/png' });
+    createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).then((img) => { this.coverTex = makeTexture(this.gl, img, { srgb: true }); }, () => { this.coverTex = null; });
+  }
+  // sky into its own texture (the screen texture the water reads: copied after the opaque pass), then into the bound game target, converted to linear
+  gameSky(target, w, h, proj, rot) {
+    const gl = this.gl, now = performance.now(), time = (now / 1000) % 3600;   // shader TIME: engine time, rollover 3600 s
+    const coverage = Math.min(1, (now - this.readyAt) / 8000);
+    this._ensureFbo(w, h);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.viewport(0, 0, w, h); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
+    gl.bindVertexArray(this.vao);
+    gl.useProgram(this.sky.program); const u = this.sky.u;
+    gl.uniformMatrix3fv(u.uRot, false, rot); gl.uniform1f(u.uTanHalf, 1 / proj[5]); gl.uniform1f(u.uAspect, proj[5] / proj[0]); gl.uniform1f(u.uTime, time);
+    gl.uniform1f(u.uCoverage, coverage); gl.uniform1f(u.uImageLerp, this.imageLerp); gl.uniform1f(u.uOpacity, 1); gl.uniform1f(u.uLod, 5);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.imgA); gl.uniform1i(u.uImgA, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.imgB); gl.uniform1i(u.uImgB, 1);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target); gl.viewport(0, 0, w, h);
+    gl.useProgram(this.blit.program); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fboTex); gl.uniform1i(this.blit.u.uTex, 0); gl.uniform1i(this.blit.u.uLin, 1);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.bindVertexArray(null);
+  }
+  // water_ripple.gdshader reads hint_screen_texture, so Godot draws it in the transparent pass: depth-tested, no depth write, sorted with the other alpha objects
+  gameWater(vp, camPos, w, h) {
+    const gl = this.gl, now = performance.now(), time = (now / 1000) % 3600, echo = Math.min(0.5, (now - this.readyAt) / 12000 * 0.5);
+    gl.bindVertexArray(this.vao); gl.disable(gl.CULL_FACE);
+    gl.useProgram(this.water.program); const wu = this.water.u;
+    gl.uniformMatrix4fv(wu.uVP, false, vp); gl.uniform1f(wu.uY, -2.01); gl.uniform1f(wu.uSize, 2000); gl.uniform1i(wu.uLin, 1);
+    gl.uniform3f(wu.uCam, camPos[0], camPos[1], camPos[2]); gl.uniform2f(wu.uRes, w, h); gl.uniform1f(wu.uTime, time); gl.uniform1f(wu.uEcho, echo);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fboTex); gl.uniform1i(wu.uScreen, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindVertexArray(null);
   }
   setMsaa(n) { this.samples = Math.min(n, this.gl.getParameter(this.gl.MAX_SAMPLES)); this.msSize = null; }
   _ensureMs(w, h) {

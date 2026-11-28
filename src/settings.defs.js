@@ -20,7 +20,7 @@ export const DEFS = [
   { id: "FoV", type: "double", def: 70, title: "Field of View", desc: "Adjusts the field of view", section: "Gameplay", slider: { step: f(1.0), min: f(60.0), max: f(120.0) }, ui: true },
   { id: "Skin", type: "string", def: "default", title: "Skin", desc: "Selected skin for the game", section: "Visual" },
   { id: "MenuSpace", type: "string", def: "skin", title: "Menu Space", desc: "Overrides the skin's background space for the menu", section: "Visual", ui: true },
-  { id: "GameSpace", type: "string", def: "skin", title: "Game Space", desc: "Overrides the skin's background space for gameplay", section: "Visual" },
+  { id: "GameSpace", type: "string", def: "skin", title: "Game Space", desc: "Overrides the skin's background space for gameplay", section: "Visual", ui: true },
   { id: "SpaceHitEffects", type: "bool", def: true, title: "Space Hit Effects", desc: "Toggles note hit effects for the game space", section: "Visual", ui: true },
   { id: "SpaceEffects", type: "bool", def: true, title: "Space Effects", desc: "Toggles non-hit effects for the game space", section: "Visual", ui: true },
   { id: "NoteColors", type: "string", def: "skin", title: "Colors", desc: "Overrides the skin's colorset", section: "Visual", ui: true },

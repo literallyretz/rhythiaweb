@@ -46,9 +46,10 @@ export class SettingsProfile {
     I.EnableMenuMusic.UpdateAction = (_, init) => { if (!init) hooks.refreshMenuMusic(); };
     // OptionButton lists: NoteColors = ["skin", "default"] (+ colorsets found in the user folder), NoteMesh = getAvailableMeshes(); both reload the skin when changed
     I.MenuSpace.List = { Values: ['skin', 'void', 'grid', 'squircles', 'waves', 'galaxy', 'tunnel', 'circulartunnel', 'tritunnel', 'vortex', 'solid', 'relic', 'conspiracy'] };
+    I.GameSpace.List = { Values: ['skin', 'void', 'grid', 'squircles', 'waves', 'galaxy', 'tunnel', 'circulartunnel', 'tritunnel', 'vortex', 'solid', 'relic', 'conspiracy'] };
     I.AntiAliasing.List = { Values: ['Off (roughest)', '2x (rough)', '4x (smooth)', '8x (smoothest)'] };
     I.NoteColors.List = { Values: ['skin'] }; I.NoteMesh.List = { Values: ['skin'] };   // filled by refreshUserLists once the user folder is read
-    I.NoteColors.UpdateAction = I.NoteMesh.UpdateAction = (_, init) => { if (!init) hooks.reloadSkin(); };
+    I.NoteColors.UpdateAction = I.NoteMesh.UpdateAction = I.GameSpace.UpdateAction = (_, init) => { if (!init) hooks.reloadSkin(); };
     // ImportNightlyMeshes / ImportNightlyColorsets: the browser has no user folder to drop files into, so these two slots pick files instead
     I.ImportNightlyMeshes.Buttons = [{ Title: 'Import Meshes', Description: 'Adds .obj meshes to the Note Mesh list', OnPressed: () => hooks.importUserFiles('meshes') }];
     I.ImportNightlyColorsets.Buttons = [{ Title: 'Import Colorsets', Description: 'Adds .txt colorsets to the Note Colors list', OnPressed: () => hooks.importUserFiles('colorsets') }];

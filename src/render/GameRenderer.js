@@ -1,24 +1,11 @@
-// WebGL2 renderer for the gameplay view: grid space, 3x3 grid quad + guides, cursor, instanced notes.
+// WebGL2 renderer for the gameplay view: the game space (Spaces.js / MenuBackground.js), 3x3 grid quad + guides, cursor, instanced notes.
 // Notes are drawn exactly as NoteRenderer.Render computes them (depth, fade-in/out, opacity exponent).
 import { compile, perspective, translate, loadImage, makeTexture, parseOBJ, GLSL_COLOR } from './gl.js';
 import { HIT_WINDOW, CURSOR_SIZE } from '../constants.js';
 import { HitResult } from '../map/Note.js';
+import { SpaceRenderer } from './Spaces.js';
+import { MenuBackground } from './MenuBackground.js';
 
-const PLANE_VS = `#version 300 es
-layout(location=0) in vec3 aPos; layout(location=1) in vec2 aUV;
-uniform mat4 uVP; uniform mat4 uView; uniform vec2 uUvOff; uniform float uUvScale;
-out vec2 vUV; out vec3 vViewP;   // view-space position; fog_process uses length(vertex) per fragment
-void main(){ vec4 vp = uView * vec4(aPos,1.0); vViewP = vp.xyz; vUV = aUV * uUvScale + uUvOff; gl_Position = uVP * vec4(aPos,1.0); }`;
-const PLANE_FS = `#version 300 es
-precision highp float; ${GLSL_COLOR}
-in vec2 vUV; in vec3 vViewP; uniform sampler2D uTex; uniform vec3 uTint; uniform vec3 uFog;
-uniform float uFogBegin, uFogEnd, uFogCurve, uFogDensity; out vec4 o;
-void main(){
-  vec3 c = texture(uTex, vUV).rgb * srgb2lin(uTint);
-  float f = pow(smoothstep(uFogBegin, uFogEnd, length(vViewP)), uFogCurve) * uFogDensity;
-  c = mix(c, srgb2lin(uFog), clamp(f,0.0,1.0));
-  o = vec4(c, 1.0);
-}`;
 const QUAD_VS = `#version 300 es
 layout(location=0) in vec2 aPos;
 uniform mat4 uVP; uniform mat4 uView; uniform vec3 uCenter; uniform vec2 uSize; uniform float uRot; out vec2 vUV; out vec3 vView;
@@ -27,7 +14,7 @@ const QUAD_FS = `#version 300 es
 precision highp float; ${GLSL_COLOR}
 in vec2 vUV; in vec3 vView; uniform sampler2D uTex; uniform float uAlpha; uniform float uFogOn; uniform vec3 uFog; uniform float uFogBegin, uFogEnd, uFogCurve, uFogDensity; out vec4 o;   // uFogOn: material without disable_fog
 void main(){ vec4 t = texture(uTex, vUV); vec3 c = t.rgb;
-  if (uFogOn > 0.5) { float f = pow(smoothstep(uFogBegin, uFogEnd, length(vView)), uFogCurve) * uFogDensity; c = mix(c, srgb2lin(uFog), clamp(f, 0.0, 1.0)); }
+  if (uFogOn > 0.5) { float f = pow(smoothstep(uFogBegin, uFogEnd, length(vView)), uFogCurve) * uFogDensity; c = mix(c, uFog, clamp(f, 0.0, 1.0)); }   // uFog: linear fog_light_color x fog_light_energy
   o = vec4(c, t.a * uAlpha); }`;
 const NOTE_VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec4 iPos; layout(location=2) in vec4 iColor;   // iPos.w: rotation about +Z (Vortex)
@@ -72,7 +59,6 @@ void main(){
 // GridGuides (settings): the + marks and faint lines; the corner brackets always draw
 // Diagnostics only (not in the original): ?hdr=0 uses an 8-bit render target, ?off=prepass,notes,grid,hud skips those draws
 const Q = new URLSearchParams(location.search), OFF = new Set((Q.get('off') || '').split(','));
-const SHOW_SPACE = false;   // set true to restore the original space planes
 export class GameRenderer {
   constructor(canvas) {
     const gl = this.gl = canvas.getContext('webgl2', { antialias: false,   // project.godot sets no msaa_3d / screen_space_aa: Godot default is no anti-aliasing
@@ -81,9 +67,7 @@ export class GameRenderer {
     this.canvas = canvas;
     this.cam = { position: [0, 0, 3.75], rotation: [0, 0, 0] };
     this.cursor = { position: [0, 0, 0], rotation: 0 };
-    this.uvOffsetY = 0;
-    this.noteHitColor = [1, 1, 1];
-    this.planeP = compile(gl, PLANE_VS, PLANE_FS, 'plane');
+    this.noteHitColor = [1, 1, 1]; this.space = null;
     this.quadP = compile(gl, QUAD_VS, QUAD_FS, 'quad');
     this.noteP = compile(gl, NOTE_VS, NOTE_FS, 'note');
     this.blitP = compile(gl, BLIT_VS, BLIT_FS, 'blit');
@@ -97,23 +81,15 @@ export class GameRenderer {
 
   async load(base = 'assets/') {
     const gl = this.gl;
-    const [grid, guides, cursor, tile, obj, vis] = await Promise.all([
+    const [grid, guides, cursor, obj, vis] = await Promise.all([
       loadImage(base + 'skin/game/grid.png'), loadImage(base + 'skin/game/grid_guides.png'), loadImage(base + 'skin/game/cursor.png'),
-      loadImage(base + 'spaces/grid_tile.png'), fetch(base + 'meshes/squircle.obj').then((r) => r.text()), loadImage(base + 'skin/game/visibility_assist.png')]);
-    this.tex = { grid: makeTexture(gl, grid), guides: makeTexture(gl, guides), cursor: makeTexture(gl, cursor), vis: makeTexture(gl, vis), tile: makeTexture(gl, tile, { repeat: true }) };
+      fetch(base + 'meshes/squircle.obj').then((r) => r.text()), loadImage(base + 'skin/game/visibility_assist.png')]);
+    this.tex = { grid: makeTexture(gl, grid), guides: makeTexture(gl, guides), cursor: makeTexture(gl, cursor), vis: makeTexture(gl, vis) };
     // quad geometry (unit square centred on origin)
     this.quadVAO = gl.createVertexArray(); gl.bindVertexArray(this.quadVAO);
     const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-.5, -.5, .5, -.5, -.5, .5, .5, .5]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    // grid-space planes (Top/Bottom of prefabs/spaces/grid.tscn, 120x120 at y=+-10)
-    const S = 60, uvOf = (x, z) => [x / 120 + 0.5, 0.5 - z / 120]; // PlaneMesh UV on the rotated instances
-    const mkPlane = (y) => { const c = [[-S, -S], [S, -S], [-S, S], [S, S]]; const d = []; for (const i of [0, 1, 2, 2, 1, 3]) { const [x, z] = c[i]; d.push(x, y, z, ...uvOf(x, z)); } return d; };
-    this.planeVAO = gl.createVertexArray(); gl.bindVertexArray(this.planeVAO);
-    const pb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, pb);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([...mkPlane(-10), ...mkPlane(10)]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
     this.setNoteMesh(obj);   // note mesh (squircle.obj unless the NoteMesh setting says otherwise) + instance buffer
   }
 
@@ -170,10 +146,40 @@ export class GameRenderer {
     gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.msDepth);
   }
 
-  // BaseSpace.NoteHitColor.Lerp(LastHitColour, min(1, delta*8)) + Spaces/Grid.cs uv scrolling (3 units / s)
-  updateSpace(deltaSec, lastHitColour, hitEffects) {
-    if (hitEffects) { const t = Math.min(1, deltaSec * 8); for (let i = 0; i < 3; i++) this.noteHitColor[i] += (lastHitColour[i] - this.noteHitColor[i]) * t; }
-    this.uvOffsetY = (this.uvOffsetY + deltaSec * 3) % 1000;
+  // ---- Game Space (SkinManager: settings.GameSpace, "skin" = the skin's GameSpace; default skin: grid) ----
+  // SceneManager.addSpace -> BaseSpace.Load: NoteHitColor = skin.NoteColors[^1]; Game: UpdateState(true), UpdateMap(map)
+  beginSpace(name, app, settings, coverBuffer) {
+    this.noteHitColor = (app.noteColors?.[app.noteColors.length - 1] ?? [1, 1, 1]).slice(0, 3);
+    if (name === 'waves') { (this.waves ??= new MenuBackground(this.canvas)).gameBegin(settings, coverBuffer); this.space = { name }; }
+    else if (name === 'void' || name === 'solid') this.space = { name };
+    else { this.spaces ??= new SpaceRenderer(this.gl, app, true); this.space = { name, s: this.spaces.gameBegin(name) }; }
+  }
+  // SkinManager.Load (Game Space changed): new space instances
+  resetSpaces() { this.waves = null; this.spaces = null; this.space = null; }
+  // BaseSpace._Process: while Playing, NoteHitColor = NoteHitColor.Lerp(LastHitColour, min(1, delta * 8)) when SpaceHitEffects; then the space's _Process
+  updateSpace(deltaSec, lastHitColour, settings) {
+    if (settings.SpaceHitEffects && lastHitColour) { const t = Math.min(1, deltaSec * 8); for (let i = 0; i < 3; i++) this.noteHitColor[i] += (lastHitColour[i] - this.noteHitColor[i]) * t; }
+    if (this.space?.s) { this.space.s.hit = [...this.noteHitColor, 1]; this.spaces.step(this.space.s, deltaSec, settings, performance.now()); }   // Time.GetTicksMsec
+  }
+  // the world's background (linear): the space's WorldEnvironment
+  spaceBackground() {
+    const sp = this.space;
+    if (sp?.s) return this.spaces.background(sp.s);
+    if (sp?.name === 'solid') {   // Solid.updateColor(NoteHitColor) while Playing: Darkened(0.9), background_energy_multiplier 1.2
+      return this.noteHitColor.map((v) => { v *= 0.1; return (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)) * 1.2; });
+    }
+    return [0, 0, 0];   // void (custom colour, black); waves: the sky covers it
+  }
+  spaceFog() { return this.space?.s ? this.spaces.fog(this.space.s) : { on: false }; }
+  drawSpace(proj, vp, view, cp, camRot, sky) {
+    const sp = this.space; if (!sp) return [];
+    if (sp.s) return this.spaces.gameDraw(sp.s, proj, view, cp, camRot, sky);
+    // the water plane is edge-on to the orthographic replay camera: nothing to draw there
+    if (sp.name === 'waves' && sky) {
+      this.waves.gameSky(this.msFbo || this.fbo, this.fbW, this.fbH, proj, camRot);
+      return [{ p: 0, d: Math.hypot(cp[0], cp[1] + 2.01, cp[2]), draw: () => this.waves.gameWater(vp, cp, this.fbW, this.fbH) }];   // Water AABB centre (0, -2.01, 0)
+    }
+    return [];
   }
 
   // Builds the instance list exactly like NoteRenderer.Render and draws a frame.
@@ -182,8 +188,8 @@ export class GameRenderer {
     const w = this.canvas.width, h = this.canvas.height;
     this.ensureTarget(w, h); gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo || this.fbo);
     gl.viewport(0, 0, w, h);
-    gl.clearColor(0, 0, 0, 1); // plain black background (requested; original: project.godot default_clear_color + space planes)
-    gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    const bg = this.spaceBackground();
+    gl.clearColor(bg[0], bg[1], bg[2], 1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     const proj = perspective(this.fov ?? settings.FoV, w / h, 0.05, 4000);   // Camera.Fov = Runner settings.FoV (a replay's own FoV while watching one)
     const [cx, cy, cz] = this.cam.position, [rx, ry] = this.cam.rotation ?? [0, 0, 0];
     // view = inverse(camera transform); basis = Basis.FromEuler(rotation, YXZ) (Camera3D.Rotation; z is always 0 here)
@@ -193,36 +199,29 @@ export class GameRenderer {
     const view = new Float32Array([X[0], Y[0], Z[0], 0, X[1], Y[1], Z[1], 0, X[2], Y[2], Z[2], 0, -dot(X), -dot(Y), -dot(Z), 1]);
     const vp = mulMat(proj, view);
 
-    // --- space ---
-    gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
-    gl.useProgram(this.planeP.program); const pu = this.planeP.u;
-    gl.uniformMatrix4fv(pu.uVP, false, vp); gl.uniformMatrix4fv(pu.uView, false, view);
-    gl.uniform2f(pu.uUvOff, 0, this.uvOffsetY); gl.uniform1f(pu.uUvScale, 34);
-    gl.uniform3fv(pu.uTint, this.noteHitColor); gl.uniform3f(pu.uFog, 0.0470588, 0.0313726, 0.109804);
-    gl.uniform1f(pu.uFogBegin, 10); gl.uniform1f(pu.uFogEnd, 60); gl.uniform1f(pu.uFogCurve, 0.15); gl.uniform1f(pu.uFogDensity, 1);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.tex.tile); gl.uniform1i(pu.uTex, 0);
-    if (SHOW_SPACE) { gl.bindVertexArray(this.planeVAO); gl.drawArrays(gl.TRIANGLES, 0, 12); }
-
     // --- alpha list (RenderForwardClustered: sort_by_reverse_depth_and_priority). Every object here is an alpha material:
     // priority ascending, then farthest first by distance camera -> AABB centre. Depth test on, no depth write
     // (depth_draw_opaque); the note MultiMesh (ALPHA_DEPTH_PRE_PASS) first writes depth for alpha >= 0.99 in the depth prepass.
     const inst = this.buildNotes(attempt, runner, progress, settings, noteColors); this.lastNoteCount = inst.length / 8;
-    const drawWorld = (vp, view, cx, cy, cz) => {
+    const camRot = new Float32Array([...X, ...Y, ...Z]), fog = this.spaceFog();
+    const drawWorld = (vp, view, cx, cy, cz, proj, sky) => {
+    // the space's own geometry: opaque now (before the depth prepass), its transparent draws into this alpha list
+    const spaceTrans = OFF.has('space') ? [] : this.drawSpace(proj, vp, view, [cx, cy, cz], camRot, sky);
     gl.depthFunc(gl.LEQUAL);                                   // Godot reverse-Z GREATER_OR_EQUAL
     gl.colorMask(false, false, false, false); gl.depthMask(true); gl.disable(gl.BLEND);
     if (!OFF.has('prepass')) this.drawNotes(vp, inst, settings, true);
     gl.colorMask(true, true, true, true); gl.depthMask(false);
     gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    const dist = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz), list = [];
+    const dist = (x, y, z) => Math.hypot(x - cx, y - cy, z - cz), list = [...spaceTrans];
     if (inst.length && !OFF.has('notes')) { // MultiMesh AABB from this frame's instances (mesh extent noteSize/2 in x/y/z)
       let mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
       for (let i = 0; i < inst.length; i += 8) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], inst[i + k]); mx[k] = Math.max(mx[k], inst[i + k]); }
       list.push({ p: 0, d: dist((mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2), draw: () => this.drawNotes(vp, inst, settings, false) });
     }
-    const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0, fog = null) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.uniformMatrix4fv(qu.uView, false, view); gl.uniform1f(qu.uFogOn, fog ? 1 : 0); if (fog) { gl.uniform3f(qu.uFog, 0.0470588, 0.0313726, 0.109804); gl.uniform1f(qu.uFogBegin, 10); gl.uniform1f(qu.uFogEnd, 60); gl.uniform1f(qu.uFogCurve, 0.15); gl.uniform1f(qu.uFogDensity, 1); } gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
-    // Grid/VisibilityAssist (game.tscn): 300x300 quad at z=-140, unshaded alpha, GeometryInstance Transparency 0.25, fog NOT disabled: grid.tscn's depth fog
-    // (begin 10, end 60, curve 0.15, density 1, colour fog_light_color) applied per fragment like the planes' shader
+    const quad = (tex, cxq, cyq, czq, sx, sy, a, rot = 0, fogged = false) => { const qu = this.quadP.u; gl.useProgram(this.quadP.program); gl.uniformMatrix4fv(qu.uVP, false, vp); gl.uniform1i(qu.uTex, 0); gl.bindVertexArray(this.quadVAO);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform3f(qu.uCenter, cxq, cyq, czq); gl.uniform2f(qu.uSize, sx, sy); gl.uniform1f(qu.uAlpha, a); gl.uniform1f(qu.uRot, rot * Math.PI / 180); gl.uniformMatrix4fv(qu.uView, false, view); const fogOn = fogged && fog.on; gl.uniform1f(qu.uFogOn, fogOn ? 1 : 0); if (fogOn) { gl.uniform3fv(qu.uFog, fog.color); gl.uniform1f(qu.uFogBegin, fog.begin); gl.uniform1f(qu.uFogEnd, fog.end); gl.uniform1f(qu.uFogCurve, fog.curve); gl.uniform1f(qu.uFogDensity, fog.density); } gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); };
+    // Grid/VisibilityAssist (game.tscn): 300x300 quad at z=-140, unshaded alpha, GeometryInstance Transparency 0.25, fog NOT disabled: the game space's
+    // WorldEnvironment depth fog applies to it, per fragment
     if (this.visAssist && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -140), draw: () => quad(this.tex.vis, 0, 0, -140, 300, 300, 0.75, 0, true) });
     if (settings.GridGuides && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -0.2), draw: () => quad(this.tex.guides, 0, 0, -0.2, 4.04, 4.04, 1) });   // GridGuides: scale 1.01, z=-0.2
     if (!OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, 0), draw: () => quad(this.tex.grid, 0, 0, 0, 4, 4, 1) });                                    // Grid quad 4x4
@@ -245,7 +244,7 @@ export class GameRenderer {
     for (const e of list) e.draw();
     gl.depthMask(true);
     };
-    drawWorld(vp, view, cx, cy, cz);
+    drawWorld(vp, view, cx, cy, cz, proj, true);
     if (this.msFbo) {   // MSAA resolve
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fbo);
       gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -278,7 +277,7 @@ export class GameRenderer {
     const half = 4.5 / 2, n = 0.05, fa = 139, cz = 0.60892284;
     const proj = new Float32Array([1 / half, 0, 0, 0, 0, 1 / half, 0, 0, 0, 0, -2 / (fa - n), 0, 0, 0, -(fa + n) / (fa - n), 1]);
     const view = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -cz, 1]);
-    drawWorld(mulMat(proj, view), view, 0, 0, cz);
+    drawWorld(mulMat(proj, view), view, 0, 0, cz, proj, false);   // transparent_bg: no background or sky
     // composite on the screen (sRGB), premultiplied
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
     gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);

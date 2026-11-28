@@ -103,7 +103,8 @@ export class GameScene {
     attempt.HighestCombo = 0;
     this.hud.init(attempt, runner);
     app.renderer.cam.position = [0, 0, 3.75]; app.renderer.cam.rotation = [0, 0, 0]; app.renderer.cursor.position = [0, 0, 0];
-    app.renderer.noteHitColor = [1, 1, 1];
+    // SceneManager.addSpace(skin.GameSpace) -> Load; Game: Space.UpdateState(true), Space.UpdateMap(Attempt.Map)
+    app.renderer.beginSpace(app.settings.GameSpace === 'skin' ? 'grid' : app.settings.GameSpace, app, app.settings, map.CoverBuffer ?? app.map?.CoverBuffer);   // "skin": the default skin's GameSpace (SkinConfig: grid)
     // CursorManager._EnterTree; Runner.Play: Camera.Fov = settings.FoV (the replay's profile while watching one)
     this.cursorManager.init(attempt); runner.replayManager = this.replayManager;
     app.renderer.fov = attempt.IsReplay ? attempt.Replays[0].Settings.FoV : null;
@@ -162,7 +163,7 @@ export class GameScene {
     if (r.Playing) ren.cursor.rotation = Math.fround(ren.cursor.rotation + Math.fround(Math.fround(this.cursorManager.settings.CursorRotation) * Math.fround(dt / 1000)));   // CursorManager settings
     // CursorManager/TrailRenderer._Process (child of CursorManager, so after its cursor rotation): Rotation.Z = cursor rotation in radians, size = Grid.Init CURSOR_SIZE * CursorScale
     this.trail.process(dt / 1000, a, r, this.app.settings, Math.fround(ren.cursor.rotation * Math.PI / 180), Math.fround(CURSOR_SIZE * this.app.settings.CursorScale));
-    ren.updateSpace(dt / 1000, a.LastHitColour, this.app.settings.SpaceHitEffects);
+    ren.updateSpace(dt / 1000, a.LastHitColour, this.app.settings);
     this.hud.frame(progress);
     const p2 = pf ? performance.now() : 0;
     pf?.begin();

@@ -162,7 +162,8 @@ async function boot() {
     if (app.menuBg) app.menuBg.mouseX = e.clientX - window.innerWidth / 2;
     if (app.spaces) { app.spaces.mouseX = e.clientX - window.innerWidth / 2; app.spaces.mouseY = e.clientY - window.innerHeight / 2; }   // viewport mouse - visible size / 2
   });
-  hooks.refreshMenuMusic = () => app.sound.refreshMenuMusicPlayback(); hooks.reloadSkin = () => app.loadSkinContent();
+  hooks.refreshMenuMusic = () => app.sound.refreshMenuMusicPlayback(); hooks.reloadSkin = () => { app.renderer?.resetSpaces();   // SkinManager.Load: new MenuSpace / GameSpace instances
+    return app.loadSkinContent(); };
   hooks.importUserFiles = (kind) => {
     const inp = Object.assign(document.createElement('input'), { type: 'file', multiple: true, accept: kind === 'meshes' ? '.obj' : '.txt' });
     inp.onchange = async () => { const n = await userContent.importFiles(kind, inp.files); app.settings.refreshUserLists(); notify(`Imported ${n} ${kind}`); };
