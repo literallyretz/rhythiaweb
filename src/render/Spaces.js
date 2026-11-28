@@ -207,6 +207,7 @@ export class SpaceRenderer {
   constructor(gl, app) {
     this.gl = gl; this.app = app; this.scenes = new Map(); this.textures = new Map(); this.meshes = new Map(); this.objCache = new Map();
     this.prog = compile(gl, VS, FS, 'space'); this.skyP = compile(gl, SKY_VS, SKY_FS, 'spaceSky'); this.blitP = compile(gl, BLIT_VS, BLIT_FS, 'spaceBlit');
+    this.samples = ({ '2x (rough)': 2, '4x (smooth)': 4, '8x (smoothest)': 8 }[app.settings.items.AntiAliasing.Value] || 0); this.samples = Math.min(this.samples, gl.getParameter(gl.MAX_SAMPLES));
     this.full = gl.createVertexArray(); gl.bindVertexArray(this.full);
     const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null);
@@ -278,7 +279,7 @@ export class SpaceRenderer {
     const w = Math.max(2, Math.floor(canvas.clientWidth * dpr)), h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     this.ensureTarget(w, h);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.viewport(0, 0, w, h);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo || this.fbo); gl.viewport(0, 0, w, h);
     const env = s.env, mode = env.background_mode ?? 0;
     // background: 0 = clear colour (project default_clear_color), 1 = custom colour x energy, 2 = sky
     let bg = mode === 1 ? linColor(env.background_color ?? [0, 0, 0, 1]).map((v, i) => (i < 3 ? v * (env.background_energy_multiplier ?? 1) : v)) : linColor([0.0885599, 0.08855992, 0.08855987, 1]);
@@ -313,20 +314,33 @@ export class SpaceRenderer {
       gl.depthMask(!!d.depthAlways); this.draw(d, fogOn);
     }
     gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.CULL_FACE); gl.frontFace(gl.CCW);
+    if (this.msFbo) {   // Anti Aliasing (Msaa3D): resolve the multisampled buffer into the frame texture
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fbo);
+      gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    }
     // linear -> sRGB on screen
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); gl.disable(gl.DEPTH_TEST);
     gl.useProgram(this.blitP.program); gl.bindVertexArray(this.full); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fbTex); gl.uniform1i(this.blitP.u.uTex, 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.bindVertexArray(null);
   }
+  setMsaa(n) { this.samples = Math.min(n, this.gl.getParameter(this.gl.MAX_SAMPLES)); this.size = null; }
   ensureTarget(w, h) {
-    const gl = this.gl; if (this.fbo && this.size[0] === w && this.size[1] === h) return;
+    const gl = this.gl; if (this.fbo && this.size && this.size[0] === w && this.size[1] === h) return;
     if (this.fbo) { gl.deleteFramebuffer(this.fbo); gl.deleteTexture(this.fbTex); gl.deleteRenderbuffer(this.depth); }
+    if (this.msFbo) { gl.deleteFramebuffer(this.msFbo); gl.deleteRenderbuffer(this.msColor); gl.deleteRenderbuffer(this.msDepth); this.msFbo = null; }
     this.size = [w, h];
     this.fbTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, this.fbTex); gl.texStorage2D(gl.TEXTURE_2D, 1, this.hdr ? gl.RGBA16F : gl.RGBA8, w, h);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     this.depth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.depth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
     this.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.fbTex, 0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.depth);
+    const n = this.samples || 0;
+    if (n) {
+      this.msColor = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.msColor); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, this.hdr ? gl.RGBA16F : gl.RGBA8, w, h);
+      this.msDepth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, this.msDepth); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, n, gl.DEPTH_COMPONENT24, w, h);
+      this.msFbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.msFbo);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, this.msColor); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, this.msDepth);
+    }
   }
   drawSky(s, env, fogOn, fogColor, f, aspect) {
     const gl = this.gl, sky = this.resolveSky(s); if (!sky) return;

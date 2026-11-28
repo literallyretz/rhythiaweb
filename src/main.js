@@ -44,7 +44,7 @@ function initVideoSettings() {
   const I = app.settings.items, MSAA = { '2x (rough)': 2, '4x (smooth)': 4, '8x (smoothest)': 8 };
   const fps = () => { frameLimit.fps = I.LockFPS.Value ? I.FPS.Value : 0; };
   I.LockFPS.Updated.add(fps); I.FPS.Updated.add(fps); fps();
-  const aa = () => { const n = MSAA[I.AntiAliasing.Value] || 0; app.renderer?.setMsaa(n); app.menuBg?.setMsaa(n); };
+  const aa = () => { const n = MSAA[I.AntiAliasing.Value] || 0; app.renderer?.setMsaa(n); app.menuBg?.setMsaa(n); app.spaces?.setMsaa(n); };
   I.AntiAliasing.Updated.add(aa); aa();
   const isFs = () => !!document.fullscreenElement;
   let syncing = false;
