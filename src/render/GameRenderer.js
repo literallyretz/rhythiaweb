@@ -358,7 +358,9 @@ export class GameRenderer {
     gl.uniform1i(this.noteP.u.uPrepass, prepass ? 1 : 0);
     gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
     gl.bindVertexArray(this.noteVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.instBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+    // reuse one staging array and GPU buffer; grow (x2) only when a frame needs more notes than before
+    if (!this.instArr || this.instArr.length < arr.length) { this.instArr = new Float32Array(Math.max(arr.length, (this.instArr?.length || 64) * 2)); gl.bufferData(gl.ARRAY_BUFFER, this.instArr.byteLength, gl.DYNAMIC_DRAW); }
+    this.instArr.set(arr); gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.instArr, 0, arr.length);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, this.noteVerts, count);
     gl.disable(gl.CULL_FACE);
   }

@@ -21,7 +21,8 @@ export class GameScene {
   constructor(app) {
     this.app = app; this.active = false; this.paused = false; this.trail = new TrailRenderer();
     this.hud = new Hud(document.getElementById('hudRoot'), document.getElementById('hudPersp'), app.canvas);
-    document.addEventListener('pointermove', (e) => this.onMouseMove(e));
+    // pointerrawupdate (secure contexts, Chromium) is dispatched per OS motion event instead of once per frame, like Godot's input events
+    document.addEventListener('onpointerrawupdate' in window ? 'pointerrawupdate' : 'pointermove', (e) => this.onMouseMove(e));
     document.addEventListener('keydown', (e) => this.onKey(e));
     document.addEventListener('pointerlockchange', () => this.onLockChange());
     // Web-only (not in the original): a browser cannot confine the pointer, so Absolute Input is only playable in fullscreen (F11 or the Fullscreen API)
