@@ -215,6 +215,7 @@
 .exSS img{position:absolute;left:20px;top:20px;right:20px;bottom:20px;width:160px;height:160px;pointer-events:none}
 .exSSl{position:absolute;left:0;right:0;bottom:0;height:24px;text-align:center;font:500 16px Ubuntu,sans-serif;color:rgba(255,255,255,.251);white-space:nowrap;pointer-events:none}
 .exSS.hov .exSSl .n{color:#fff}
+.exPort{position:absolute;left:0;right:0;top:calc(50% + 104px);text-align:center;font:500 13px Ubuntu,sans-serif;color:rgba(255,255,255,.251);pointer-events:none}   /* port-only */
 /* Stats (anchors 0.25..0.5, offsets top 200 / right -150 / bottom -200, min 400x400, grows left and both ways vertically);
    Contributors (anchors 0.5..0.75, offsets 150 / 160 / 230 / -160, min 400x400, grows right and both ways vertically) */
 .exPanel{position:absolute}

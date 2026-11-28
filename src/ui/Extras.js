@@ -38,6 +38,7 @@ export class Extras {
     this.app = app; this.el = el;
     el.innerHTML = `<div class="exBg"><div class="exTile"></div></div>
       <button class="exSS"><img src="assets/textures/RhythiaSquircle.png" alt=""><div class="exSSl"><span>Inspired by </span><span class="n">Sound Space</span></div><i class="exSSb"></i></button>
+      <div class="exPort">Web port</div>
       <div class="exPanel exStats"><div class="exPb"></div><div class="exHdr">STATISTICS</div><div class="exSc"><div class="exV exSv"></div></div><div class="mi-ol"></div></div>
       <div class="exPanel exCred"><div class="exPb"></div><div class="exHdr">CONTRIBUTORS</div><div class="exSc"><div class="exV exCv"></div></div><div class="mi-ol"></div></div>`;
     const q = (s) => el.querySelector(s);
@@ -63,6 +64,11 @@ export class Extras {
     jonvy.innerHTML = '<button class="exCb" tabindex="-1"></button><u>jonvy</u><br><span class="sub">"Redshift" (Menu theme) artist</span>';
     q('.exCv').appendChild(jonvy);
     linkPopupButton(jonvy.firstChild, 'https://soundcloud.com/jonvyost');
+    // Port-only (not in the original): the browser port's credit, styled like the jonvy entry
+    const port = document.createElement('div'); port.className = 'exC link';
+    port.innerHTML = '<button class="exCb" tabindex="-1"></button><u>literallyretz</u><br><span class="sub">Rhythia Web (browser port)</span>';
+    q('.exCv').appendChild(port);
+    linkPopupButton(port.firstChild, 'https://github.com/literallyretz/rhythiaweb');
 
     // ExtrasPanel._Process: outline cursor_position = viewport mouse position
     this.ols = [...el.querySelectorAll('.mi-ol')]; for (const o of this.ols) o._cl = cursorLight(o);
