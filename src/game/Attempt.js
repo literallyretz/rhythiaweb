@@ -1,9 +1,9 @@
-// Port of scripts/game/Attempt.cs (replay / camera-spin fields intentionally omitted)
+// Port of scripts/game/Attempt.cs
 import { CameraLock } from './CameraLock.js';
 import { hexColor } from '../util/misc.js';
 
 export class Attempt {
-  constructor(map, speed, startFrom, settings, noteColors, songLengthSec = 0, mods = [], cameraMode = new CameraLock()) {
+  constructor(map, speed, startFrom, settings, noteColors, songLengthSec = 0, mods = [], cameraMode = new CameraLock(), replays = null) {
     this.ID = `${map.Name}_${new Date().toISOString().replace(/:/g, '_')}`;
     this.Settings = settings;
     this.Map = map;
@@ -13,7 +13,9 @@ export class Attempt {
     this.Modifiers = mods;   // the Lobby's list itself, as Game.Play passes Lobby.Modifiers
     this.Stopped = false; this.Paused = false; this.Alive = true; this.CanSkip = false; this.Qualifies = true;
     this.DeathTime = -1;
-    this.IsReplay = false;
+    this.Replays = replays;
+    this.IsReplay = replays != null;
+    this.ReplayPath = null; this.ReplayFrames = []; this.MaxReplayLength = 0; this.LastReplayFrame = 0;
     this.UseFadeOut = true;
 
     this.Length = Math.max(1000 * songLengthSec, map.Length + 1000);
@@ -24,7 +26,8 @@ export class Attempt {
     this.ComboMultiplier = 1; this.ComboMultiplierProgress = 0;
     this.ComboMultiplierIncrement = Math.max(2, Math.floor(map.Notes.length / 200));
     this.ModsMultiplier = 1;
-    this.HitsInfo = new Float32Array(map.Notes.length);
+    this.HitsInfo = this.IsReplay ? replays[0].Notes : new Float32Array(map.Notes.length);
+    if (this.IsReplay) for (const r of replays) if (r.Length > this.MaxReplayLength) this.MaxReplayLength = r.Length;
     this.ReplaySkips = [];
     this.DistanceMM = 0;
 

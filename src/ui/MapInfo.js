@@ -1,5 +1,5 @@
 // Port of scripts/ui/menu/play/MapInfo.cs, MapInfoContainer.cs, FlatPreview.cs, SpeedPresetButton.cs, LinkPopupButton.cs and prefabs/map_info_container.tscn.
-// Leaderboard, Dim, LeaderboardHide and ScorePanel (prefabs/score_panel.tscn) included. Replays aren't ported, so a score's VIEW button finds no replay.
+// Leaderboard, Dim, LeaderboardHide and ScorePanel (prefabs/score_panel.tscn) included.
 import { MapManager } from '../map/MapManager.js';
 import { Lobby } from '../Lobby.js';
 import { DIFFICULTY_COLORS } from '../constants.js';
@@ -11,6 +11,7 @@ import { GodotScroll } from './GodotScroll.js';
 import { Modifiers } from '../game/modifiers.js';
 import { CameraModes } from '../game/cameraModes.js';
 import { Leaderboard } from '../map/Leaderboard.js';
+import { loadReplay, replayExists } from '../map/Replay.js';
 import { padMagnitude } from '../util/misc.js';
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
@@ -262,10 +263,14 @@ class MapInfoContainer {
       else { g('.sp-sc').textContent = `${formatTime(Math.max(0, sc.Progress) / 1000)} / ${formatTime(sc.MapLength / 1000)}`; g('.sp-sc').style.color = 'rgb(160,160,160)'; }
       for (const [name, on] of Object.entries(sc.Modifiers)) if (on) { const im = document.createElement('img'); im.src = `assets/skin/modifiers/${name.toLowerCase()}.png`; im.alt = name; g('.sp-mods').appendChild(im); }
       const btn = g('.sp-btn'), h = btn.firstChild;
-      // ScorePanel: hover label = File.Exists(replays/<AttemptID>.phxr) ? "VIEW" : "REPLAY NOT FOUND"; replays aren't ported, so never found; Replay() then does nothing
-      btn.onmouseenter = () => { h.firstChild.textContent = 'REPLAY NOT FOUND'; hov(h, true); };
+      // ScorePanel: hover label = File.Exists(replays/<AttemptID>.phxr) ? "VIEW" : "REPLAY NOT FOUND"; Replay() plays the file when it exists
+      btn.onmouseenter = async () => { hov(h, true); const ok = await replayExists(sc.AttemptID); h.firstChild.textContent = ok ? 'VIEW' : 'REPLAY NOT FOUND'; };
       btn.onmouseleave = () => hov(h, false);
-      btn.onclick = () => this.toggleLeaderboard(false);
+      btn.onclick = async () => {
+        if (!(await replayExists(sc.AttemptID))) return;
+        const replay = await loadReplay(sc.AttemptID);
+        if (replay?.Valid) this.app.playReplay([replay]);   // an invalid file is not played (the original would start it anyway)
+      };
       this.lbv.appendChild(p);
     }
     function hov(el, show) { el._a ??= 0; tweenProp(el, '_a', show ? 1 : 0, 0.25, outQuart); }

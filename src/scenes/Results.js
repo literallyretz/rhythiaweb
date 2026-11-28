@@ -1,11 +1,13 @@
-// Port of scenes/Results.cs + results.tscn + ui/results/Graph.cs. Replay button/modifiers omitted (no replays/mods in scope).
+// Port of scenes/Results.cs + results.tscn + ui/results/Graph.cs.
 import { padMagnitude } from '../util/misc.js';
+import { loadReplay, replayExists } from '../map/Replay.js';
 
 export class ResultsScene {
   constructor(app) {
     this.app = app; this.mouse = [0, 0]; this.hold = [0, 0];
     document.getElementById('rBack').onclick = () => this.back();
     document.getElementById('rPlay').onclick = () => this.replay();
+    document.getElementById('rReplay').onclick = () => this.watchReplay();
     document.addEventListener('mousemove', (e) => { this.mouse = [e.clientX, e.clientY]; });
     document.addEventListener('keydown', (e) => { if (!this.shown || e.repeat) return; if (e.code === 'Escape') this.back(); else if (e.code === 'Backquote') this.replay(); });
   }
@@ -14,10 +16,10 @@ export class ResultsScene {
     this.app.menuCursor?.UpdateVisible(this.app.settings.UseCursorInMenus);   // Results._Ready: MouseMode + MenuCursor.Visible
     const m = attempt.Map, $ = (id) => document.getElementById(id);
     const set = (id, t) => { $(id).innerHTML = ''; const s = document.createElement('span'); s.textContent = t; $(id).appendChild(s); };
-    set('rTitle', m.PrettyTitle); set('rDiff', m.DifficultyName); set('rMappers', `by ${m.PrettyMappers}`);
+    set('rTitle', (attempt.IsReplay ? '[REPLAY] ' : '') + m.PrettyTitle); set('rDiff', m.DifficultyName); set('rMappers', `by ${m.PrettyMappers}`);
     set('rAcc', `${attempt.Accuracy.toFixed(2)}%`); set('rScore', padMagnitude(attempt.Score));
     set('rHits', `${padMagnitude(attempt.Hits)} / ${padMagnitude(attempt.Sum)}`);
-    set('rStatus', attempt.Alive ? (attempt.Qualifies ? 'PASSED' : 'DISQUALIFIED') : 'FAILED');
+    set('rStatus', attempt.IsReplay ? attempt.Replays[0].Status : attempt.Alive ? (attempt.Qualifies ? 'PASSED' : 'DISQUALIFIED') : 'FAILED');
     set('rSpeed', `${attempt.Speed.toFixed(2)}x`);
     $('rMods').innerHTML = '';   // one ModifierTemplate duplicate per attempt modifier
     for (const mod of attempt.Modifiers) { const i = document.createElement('img'); i.alt = mod.Name; i.src = `assets/skin/modifiers/${mod.Name.toLowerCase()}.png`; $('rMods').appendChild(i); }
@@ -25,6 +27,9 @@ export class ResultsScene {
     this.app.sound.menuMusic.stop();                           // Results._Ready: stops menu music after going to results scene
     // Results._Ready: if the song is not playing start it; PitchScale = attempt speed
     const song = this.app.sound.song; if (!song.playing && m.decodedAudio) song.play(0); song.pitchScale = attempt.Speed;
+    // Replay button: shown unless the map is ephemeral, hidden when this attempt left no replay file
+    const rb = $('rReplay'); rb.hidden = !!m.Ephemeral;
+    if (!attempt.IsReplay) { rb.hidden = true; if (attempt.ReplayPath && !m.Ephemeral) (attempt.replaySaved ?? Promise.resolve()).then(() => { if (this.attempt === attempt) rb.hidden = false; }).catch(() => {}); }
     document.getElementById('results').classList.remove('hidden');
     this.hold = [0, 0]; this._last = performance.now();
     requestAnimationFrame(() => this.drawGraph());
@@ -40,7 +45,7 @@ export class ResultsScene {
   // Graph._Draw
   drawGraph() {
     const a = this.attempt, c = document.getElementById('rGraphC'), W = c.clientWidth, H = c.clientHeight; c.width = W; c.height = H;
-    const g = c.getContext('2d'), info = a.HitsInfo, death = a.DeathTime;
+    const g = c.getContext('2d'), info = a.IsReplay ? a.Replays[0].Notes : a.HitsInfo, death = a.IsReplay ? a.MaxReplayLength : a.DeathTime;
     for (let i = a.FirstNote; i < info.length; i++) {
       const off = info[i], ms = a.Map.Notes[i].Millisecond, np = ms / a.Map.Length;
       if (ms > death && death !== -1) break;
@@ -51,5 +56,16 @@ export class ResultsScene {
   }
   hide() { this.shown = false; document.getElementById('results').classList.add('hidden'); }
   back() { this.app.toMenu(true); }   // Results.Stop only loads the menu scene; the song keeps playing
-  replay() { this.app.sound.song.stop(); this.app.play(true); }
+  // Results.Replay: the same map, speed, start, camera mode and modifiers, without replays
+  replay() { const a = this.attempt; this.app.sound.song.stop(); this.app.play(true, { speed: a.Speed, startFrom: a.StartFrom, mods: a.Modifiers, cameraMode: a.CameraMode, replays: null }); }
+  async watchReplay() {
+    const a = this.attempt, id = a.IsReplay ? a.Replays[0].ID : a.ReplayPath?.replace(/^replays\/|\.phxr$/g, '');
+    if (!id) return;
+    await a.replaySaved;
+    if (!(await replayExists(id))) return;
+    const replay = await loadReplay(id);
+    if (!replay?.Valid) return;
+    this.app.sound.song.stop();
+    this.app.playReplay([replay]);
+  }
 }

@@ -1,5 +1,5 @@
 // Port of scripts/game/Runner.cs (gameplay loop, object processing, scoring, health, fail/stop).
-// Godot signals -> a tiny emitter. Sections that belong to replays, stats persistence and leaderboards are left out (not ported yet).
+// Godot signals -> a tiny emitter.
 import { HitResult } from '../map/Note.js';
 import { BREAK_TIME } from '../constants.js';
 import { binarySearch, fround, toInt } from '../util/misc.js';
@@ -54,6 +54,13 @@ export class Runner {
       this.processAutoplayHits();
     }
 
+    // Save replay frame: every 1/60 s while recording (the original's "cursor moved" check compares array references, so it is always true)
+    const now = performance.now() * 1000;
+    if (!this.autoplayEnabled && !a.Stopped && s.RecordReplays && !a.Map.Ephemeral && now - a.LastReplayFrame >= 1000000 / 60) {
+      a.LastReplayFrame = now;
+      a.ReplayFrames.push([Math.fround(a.Progress), a.CursorPosition.x, a.CursorPosition.y]);
+    }
+
     // Song state check
     if (a.Map.AudioBuffer != null) {
       const song = this.sound.song;
@@ -78,7 +85,7 @@ export class Runner {
 
     this.ProcessObjects();
 
-    if (this.StopQueued || a.Progress >= a.Length) {
+    if (this.StopQueued || (a.Progress >= a.Length && !a.IsReplay)) {
       this.StopQueued = false;
       this.Stop();
     }
@@ -110,7 +117,7 @@ export class Runner {
   Play(attempt, settings) {
     if (!attempt) return;
     this.Attempt = attempt;
-    this.settings = settings;
+    this.settings = attempt.IsReplay ? attempt.Replays[0].Settings : settings;   // the attempt itself keeps the live profile (renderers use it)
     this.Map = attempt.Map;
     this.Speed = attempt.Speed;
     this.ObjectIndicesStart = {}; this.ObjectIndicesEnd = {};
@@ -135,6 +142,7 @@ export class Runner {
       this.autoplayHandler = new AutoplayHandler(attempt);
     } else this.autoplayHandler = null;
     if (attempt.Map.AudioBuffer != null) this.sound.song.pitchScale = this.Speed;
+    if (attempt.IsReplay) for (const r of attempt.Replays) r.FrameIndex = 0;
     this.Playing = true;
     this.firstFrame = true;
   }
@@ -184,9 +192,11 @@ export class Runner {
   Fail() {
     const a = this.Attempt;
     if (a.Alive) this.sound.playFailSound();
-    a.Alive = false;
-    a.Qualifies = false;
-    if (a.DeathTime === -1) a.DeathTime = Math.max(0, a.Progress);
+    if (!a.IsReplay) {
+      a.Alive = false;
+      a.Qualifies = false;
+      if (a.DeathTime === -1) a.DeathTime = Math.max(0, a.Progress);
+    }
   }
 
   GiveUp() { this.Fail(); this.Stop(); }
@@ -204,7 +214,7 @@ export class Runner {
     this.Playing = false;
     this.StopQueued = false;
     a.Stopped = true;
-    // (replay saving is not ported)
+    if (!this.autoplayEnabled && !a.IsReplay && this.replayManager?.CurrentMode === 1) this.replayManager.SaveReplay(a);   // Mode.RECORD
     if (!a.IsReplay) {   // && !Rhythia.TempMode (no temp mode in the browser)
       const st = Stats.Instance;
       st.GamePlaytime += Math.floor((performance.now() - a.TimeStarted) / 1000);
@@ -227,7 +237,7 @@ export class Runner {
     const a = this.Attempt;
     const judgmentProgress = this.hitResultProgressOverride ?? a.Progress;
     // float lateness = (float)(((int)judgmentProgress - Notes[i].Millisecond) / Speed);
-    const lateness = fround((toInt(judgmentProgress) - a.Map.Notes[noteIndex].Millisecond) / this.Speed);
+    const lateness = a.IsReplay ? a.HitsInfo[noteIndex] : fround((toInt(judgmentProgress) - a.Map.Notes[noteIndex].Millisecond) / this.Speed);
     // float factor = 1 - Math.Max(0, lateness - 25) / 150f;
     const factor = fround(1 - fround(Math.max(0, fround(lateness - 25)) / fround(150)));
     const hitScore = Math.floor(100 * a.ComboMultiplier * a.ModsMultiplier * factor * ((this.Speed - 1) / 2.5 + 1)) >>> 0;
@@ -265,7 +275,7 @@ export class Runner {
     if (hitResult !== HitResult.None) {
       const hit = hitResult === HitResult.Hit;
       this.updateHealth(hit);
-      if (a.Health <= 0 && a.Alive) this.Fail();
+      if (!a.IsReplay && a.Health <= 0 && a.Alive) this.Fail();
       if (this.checkFail(hit, a.Health)) this.QueueStop();
     }
     this.emit('attemptStatsUpdated', a);

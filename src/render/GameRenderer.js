@@ -53,6 +53,22 @@ precision highp float; ${GLSL_COLOR} in vec2 vUV; uniform sampler2D uTex; out ve
 // Environment tonemap_mode default = Linear (exposure 1, white 1): clamp, then linear -> sRGB for the 8-bit screen
 void main(){ o = vec4(lin2srgb(clamp(texture(uTex, vUV).rgb, 0.0, 1.0)), 1.0); }`;
 
+// Replay viewer OrthogonalPanel (game.tscn): a StyleBoxFlat panel and the SubViewport's texture, drawn over the 3D view in screen (sRGB) space
+const UI_VS = `#version 300 es
+uniform vec4 uRect; out vec2 vUV;
+void main(){ vec2 c = vec2(gl_VertexID & 1, gl_VertexID >> 1); vUV = c; gl_Position = vec4(mix(uRect.xy, uRect.zw, c), 0.0, 1.0); }`;
+const UI_FS = `#version 300 es
+precision highp float; ${GLSL_COLOR} in vec2 vUV; out vec4 o;
+uniform int uMode; uniform sampler2D uTex; uniform vec4 uBox; uniform float uRadius, uBorder; uniform vec4 uFill, uBorderCol;
+float sdBox(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+void main(){
+  if (uMode == 0) { vec4 t = texture(uTex, vUV); vec3 c = t.a > 0.0 ? t.rgb / t.a : vec3(0.0); o = vec4(lin2srgb(clamp(c, 0.0, 1.0)) * t.a, t.a); return; }
+  vec2 p = gl_FragCoord.xy - (uBox.xy + uBox.zw * 0.5);
+  float outer = clamp(0.5 - sdBox(p, uBox.zw * 0.5, uRadius), 0.0, 1.0);
+  float inner = clamp(0.5 - sdBox(p, uBox.zw * 0.5 - uBorder, max(uRadius - uBorder, 0.0)), 0.0, 1.0);
+  vec4 col = mix(uBorderCol, uFill, inner); col.a *= outer; o = vec4(col.rgb * col.a, col.a);
+}`;
+
 // GridGuides (settings): the + marks and faint lines; the corner brackets always draw
 // Diagnostics only (not in the original): ?hdr=0 uses an 8-bit render target, ?off=prepass,notes,grid,hud skips those draws
 const Q = new URLSearchParams(location.search), OFF = new Set((Q.get('off') || '').split(','));
@@ -71,6 +87,8 @@ export class GameRenderer {
     this.quadP = compile(gl, QUAD_VS, QUAD_FS, 'quad');
     this.noteP = compile(gl, NOTE_VS, NOTE_FS, 'note');
     this.blitP = compile(gl, BLIT_VS, BLIT_FS, 'blit');
+    this.uiP = compile(gl, UI_VS, UI_FS, 'ui'); this.uiVAO = gl.createVertexArray();
+    this.cursors = [this.cursor]; this.cursorAlphas = null; this.fov = null; this.showOrtho = false;
     this.hudP = compile(gl, HUD_VS, HUD_FS, 'hud'); this.hudTex = new Map();
     this.hdr = !!gl.getExtension('EXT_color_buffer_float') && Q.get('hdr') !== '0';   // RGBA16F render target (Forward+ 3D buffer format)
     this.fbo = null; this.fbW = 0; this.fbH = 0; this.samples = 0; this.msFbo = null;   // AntiAliasing: Msaa3D sample count
@@ -166,7 +184,7 @@ export class GameRenderer {
     gl.viewport(0, 0, w, h);
     gl.clearColor(0, 0, 0, 1); // plain black background (requested; original: project.godot default_clear_color + space planes)
     gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    const proj = perspective(settings.FoV, w / h, 0.05, 4000);
+    const proj = perspective(this.fov ?? settings.FoV, w / h, 0.05, 4000);   // Camera.Fov = Runner settings.FoV (a replay's own FoV while watching one)
     const [cx, cy, cz] = this.cam.position, [rx, ry] = this.cam.rotation ?? [0, 0, 0];
     // view = inverse(camera transform); basis = Basis.FromEuler(rotation, YXZ) (Camera3D.Rotation; z is always 0 here)
     const sx = Math.sin(rx), cxr = Math.cos(rx), sy = Math.sin(ry), cyr = Math.cos(ry);
@@ -189,6 +207,7 @@ export class GameRenderer {
     // priority ascending, then farthest first by distance camera -> AABB centre. Depth test on, no depth write
     // (depth_draw_opaque); the note MultiMesh (ALPHA_DEPTH_PRE_PASS) first writes depth for alpha >= 0.99 in the depth prepass.
     const inst = this.buildNotes(attempt, runner, progress, settings, noteColors); this.lastNoteCount = inst.length / 8;
+    const drawWorld = (vp, view, cx, cy, cz) => {
     gl.depthFunc(gl.LEQUAL);                                   // Godot reverse-Z GREATER_OR_EQUAL
     gl.colorMask(false, false, false, false); gl.depthMask(true); gl.disable(gl.BLEND);
     if (!OFF.has('prepass')) this.drawNotes(vp, inst, settings, true);
@@ -207,8 +226,10 @@ export class GameRenderer {
     if (this.visAssist && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -140), draw: () => quad(this.tex.vis, 0, 0, -140, 300, 300, 0.75, 0, true) });
     if (settings.GridGuides && !OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, -0.2), draw: () => quad(this.tex.guides, 0, 0, -0.2, 4.04, 4.04, 1) });   // GridGuides: scale 1.01, z=-0.2
     if (!OFF.has('grid')) list.push({ p: 0, d: dist(0, 0, 0), draw: () => quad(this.tex.grid, 0, 0, 0, 4, 4, 1) });                                    // Grid quad 4x4
-    const cs = CURSOR_SIZE * settings.CursorScale, [kx, ky] = this.cursor.position;                                          // Grid.Init: CURSOR_SIZE * CursorScale
-    list.push({ p: 0, d: dist(kx, ky, 0), draw: () => quad(this.tex.cursor, kx, ky, 0, cs, cs, Math.min(Math.max(settings.CursorOpacity, 0), 1), this.cursor.rotation) });   // cursorMesh.RotationDegrees about +Z
+    const cs = CURSOR_SIZE * settings.CursorScale;                                                                          // Grid.Init: CURSOR_SIZE * CursorScale
+    // cursors: cursorMesh (+ one duplicate per extra replay being watched); alpha = 1 - Transparency (Grid.Init, or CursorManager.ShowCursor / HideCursor during replays)
+    this.cursors.forEach((c, i) => { const [kx, ky] = c.position, al = this.cursorAlphas ? this.cursorAlphas[i] : Math.min(Math.max(settings.CursorOpacity, 0), 1);
+      if (c.visible !== false) list.push({ p: 0, d: dist(kx, ky, 0), draw: () => quad(this.tex.cursor, kx, ky, 0, cs, cs, al, c.rotation ?? 0) }); });   // cursorMesh.RotationDegrees about +Z
     // TrailRenderer's CursorTrail MultiMesh (game.tscn): unshaded alpha-blended 1x1 quads scaled by the cursor size, rotated about +Z, drawn in instance order; its
     // sort depth uses the MultiMesh AABB (union of the transformed 1x1 quads) like the notes; GeometryInstance Transparency = 1 - CursorOpacity
     const tmm = this.trail?.mm;
@@ -223,6 +244,8 @@ export class GameRenderer {
     gl.disable(gl.CULL_FACE);
     for (const e of list) e.draw();
     gl.depthMask(true);
+    };
+    drawWorld(vp, view, cx, cy, cz);
     if (this.msFbo) {   // MSAA resolve
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.msFbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.fbo);
       gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -233,6 +256,45 @@ export class GameRenderer {
     gl.useProgram(this.blitP.program); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.fbTex); gl.uniform1i(this.blitP.u.uTex, 0);
     gl.bindVertexArray(this.quadVAO); gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.bindVertexArray(null);
+    if (this.showOrtho) this.drawOrtho(drawWorld, w, h);
+  }
+
+  // OrthogonalPanel: Panel at ReplayViewer (32, H - 84) + (-5, -310)..(259, -46); its SubViewportContainer (256 x 256 at (-20, -20) of the
+  // panel, scale 1.2) shows a SubViewport (256 x 256, transparent) of the same world seen by an orthographic Camera3D (size 4.5, z 0.609, far 139)
+  drawOrtho(drawWorld, w, h) {
+    const gl = this.gl, S = 256;
+    if (!this.orthoFbo) {
+      this.orthoTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, this.orthoTex);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, this.hdr ? gl.RGBA16F : gl.RGBA8, S, S);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const depth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, depth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, S, S);
+      this.orthoFbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, this.orthoFbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.orthoTex, 0);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.orthoFbo); gl.viewport(0, 0, S, S);
+    gl.clearColor(0, 0, 0, 0); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+    const half = 4.5 / 2, n = 0.05, fa = 139, cz = 0.60892284;
+    const proj = new Float32Array([1 / half, 0, 0, 0, 0, 1 / half, 0, 0, 0, 0, -2 / (fa - n), 0, 0, 0, -(fa + n) / (fa - n), 1]);
+    const view = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -cz, 1]);
+    drawWorld(mulMat(proj, view), view, 0, 0, cz);
+    // composite on the screen (sRGB), premultiplied
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
+    gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(this.uiP.program); gl.bindVertexArray(this.uiVAO); const u = this.uiP.u;
+    const k = w / (this.canvas.clientWidth || w), H = h / k;   // CSS px -> framebuffer px
+    const rect = (x0, y0, x1, y1) => gl.uniform4f(u.uRect, (x0 * k) / w * 2 - 1, 1 - (y1 * k) / h * 2, (x1 * k) / w * 2 - 1, 1 - (y0 * k) / h * 2);
+    const px = 27, py = H - 394, pw = 264;   // panel
+    rect(px - 2, py - 2, px + pw + 2, py + pw + 2);
+    gl.uniform1i(u.uMode, 1); gl.uniform4f(u.uBox, px * k, h - (py + pw) * k, pw * k, pw * k); gl.uniform1f(u.uRadius, 12 * k); gl.uniform1f(u.uBorder, 2 * k);
+    gl.uniform4f(u.uFill, 0, 0, 0, 0.8784314); gl.uniform4f(u.uBorderCol, 0, 0, 0, 0.6);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const cx0 = px - 20, cy0 = py - 20, cs = S * 1.2;   // SubViewportContainer
+    rect(cx0, cy0, cx0 + cs, cy0 + cs); gl.uniform1i(u.uMode, 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.orthoTex); gl.uniform1i(u.uTex, 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.disable(gl.BLEND); gl.bindVertexArray(null);
   }
 
   buildNotes(attempt, runner, progress, settings, noteColors) {

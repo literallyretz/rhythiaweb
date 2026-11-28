@@ -13,9 +13,13 @@ export class CameraSpin {
   Process(attempt, camera, cursor, mouseDelta, sensitivity) {
     const s = attempt.Settings, PI = f(Math.PI);
     let [rx, ry, rz] = camera.rotation ?? [0, 0, 0];
-    // camera.Rotation += (-mouseDelta.Y / 120 * sensitivity / PI, -mouseDelta.X / 120 * sensitivity / PI, 0)  (replays not in scope)
-    rx = f(rx + f(f(f(-mouseDelta.y / 120) * sensitivity) / PI));
-    ry = f(ry + f(f(f(-mouseDelta.x / 120) * sensitivity) / PI));
+    if (!attempt.IsReplay) {   // camera.Rotation += (-mouseDelta.Y / 120 * sensitivity / PI, -mouseDelta.X / 120 * sensitivity / PI, 0)
+      rx = f(rx + f(f(f(-mouseDelta.y / 120) * sensitivity) / PI));
+      ry = f(ry + f(f(f(-mouseDelta.x / 120) * sensitivity) / PI));
+    } else {                   // camera.Rotation += (mouseDelta.Y / PI, -mouseDelta.X / PI, 0)
+      rx = f(rx + f(mouseDelta.y / PI));
+      ry = f(ry + f(-mouseDelta.x / PI));
+    }
     rx = Math.min(Math.max(rx, -DEG90), DEG90);
     camera.rotation = [rx, ry, rz];
     const z = basisZ(camera.rotation), parallax = f(s.CameraParallax);

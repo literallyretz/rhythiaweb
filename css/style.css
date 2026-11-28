@@ -126,3 +126,11 @@ canvas#menuCanvas,canvas#gameCanvas{position:absolute;inset:0;width:100%;height:
 #pwBox p+p{margin-bottom:32px}
 #pwOk{border:0;border-bottom:2px solid #c90045;border-radius:4px;background:#181818;color:#fff;font:500 18px Roboto,sans-serif;padding:10px 20px;cursor:pointer}
 #pwOk:hover{border-bottom-color:#fff}
+#rReplay{right:calc(7.5% + 32px)}#rReplay[hidden]{display:none}   /* anchors 0.925, offset_right -32, grows left to its text */
+/* ReplayViewer (game.tscn): anchored to the bottom, 32 px margins, 52 px tall; default theme font */
+#replayViewer{position:absolute;left:32px;right:32px;bottom:32px;height:52px;font:600 16px "OpenSansGodot",sans-serif;color:#fff;pointer-events:none}
+#replayViewer .rvBg{position:absolute;inset:0;background:rgba(0,0,0,.8784);border:2px solid rgba(0,0,0,.6);border-radius:12px;box-sizing:border-box}
+#replayViewer .rvTip{position:absolute;left:0;bottom:100%;white-space:nowrap;color:rgba(255,255,255,.251)}
+#replayViewer .rvTime{position:absolute;left:64px;width:100px;top:12px;bottom:12px;display:flex;align-items:center;justify-content:center;white-space:nowrap}
+#replayViewer .rvPause{position:absolute;left:12px;width:40px;top:calc(50% - 17px);height:34px;padding:0;border:0;background:none;cursor:pointer;pointer-events:auto;display:flex;justify-content:center}
+#replayViewer .rvSeek{left:192px;right:32px;width:auto;top:calc(50% - 16px);pointer-events:auto}

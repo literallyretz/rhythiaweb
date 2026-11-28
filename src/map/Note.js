@@ -36,9 +36,9 @@ export class Note {
       if (a.Settings.AlwaysPlayHitSound) runner.sound.playHitSound();
     }
     const late = this._isPastWindow(runner, this.HitWindow);
-    // (replay branches of the C# are omitted: replays are out of scope)
-    if (late) this.Miss(runner);
-    else if (this.CheckHitResult(a) === HitResult.Hit) this.Hit(runner);
+    const replayLateness = a.IsReplay && a.Replays.length === 1 ? a.Replays[0].Notes[this.Index] : 0;
+    if (late && (!a.IsReplay || replayLateness === -1)) this.Miss(runner);
+    else if ((!a.IsReplay && this.CheckHitResult(a) === HitResult.Hit) || (a.IsReplay && replayLateness !== -1 && this._isPastWindow(runner, replayLateness))) this.Hit(runner);
   }
   CheckHitResult(a) {
     const c = a.CursorPosition;

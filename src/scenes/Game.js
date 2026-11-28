@@ -12,6 +12,7 @@ import { notify } from '../ui/Toast.js';
 import { Lobby } from '../Lobby.js';
 import { Stats } from '../Stats.js';
 import { MapManager } from '../map/MapManager.js';
+import { ReplayManager, Mode } from '../game/ReplayManager.js';
 
 export const STEP_MS = 1000 / 120; // project.godot physics_ticks_per_second=120 (HUD-only _PhysicsProcess)
 
@@ -33,16 +34,47 @@ export class GameScene {
     document.getElementById('pRestart').onclick = () => this.restart();
     document.getElementById('pHide').onclick = () => this.togglePause(false);
     document.getElementById('pQuit').onclick = () => { this.showPause(false); this.runner.GiveUp(); };
+    this.replayManager = new ReplayManager(this);
+    this.cursorManager = this.makeCursorManager();
   }
 
-  async start() {
+  // CursorManager: cursorMesh plus one duplicate per extra replay; its settings are the replay's profile while watching one
+  makeCursorManager() {
+    const game = this;
+    return {
+      settings: null, alphas: [], fades: [],
+      init(attempt) {
+        const ren = game.app.renderer;
+        this.settings = attempt.IsReplay ? attempt.Replays[0].Settings : attempt.Settings;
+        ren.cursors = [ren.cursor];
+        if (attempt.IsReplay) for (let i = 1; i < attempt.Replays.length; i++) ren.cursors.push({ position: [0, 0, 0], rotation: 0 });
+        this.alphas = ren.cursors.map(() => Math.min(Math.max(attempt.Settings.CursorOpacity, 0), 1)); this.fades = ren.cursors.map(() => null);
+        ren.cursorAlphas = attempt.IsReplay ? this.alphas : null;   // Grid.Init sets the live opacity; replays overwrite it every frame
+      },
+      ShowCursor(i = 0, instant = true) {
+        if (instant) this.alphas[i] = this.settings.CursorOpacity;                                   // Transparency = 1 - CursorOpacity
+        else this.fades[i] = { from: this.alphas[i], t0: performance.now() };                        // CreateTween().TweenProperty(transparency, 1, 0.5)
+      },
+      HideCursor(i = 0, instant = true) { this.ShowCursor(i, instant); },
+      process() { this.fades.forEach((f, i) => { if (!f) return; const t = Math.min(1, (performance.now() - f.t0) / 500); this.alphas[i] = f.from * (1 - t); if (t >= 1) this.fades[i] = null; }); },
+      UpdateCursor(pos, i = 0) { const ren = game.app.renderer; updateCursor(game.runner.Attempt, ren.cam, ren.cursors[i], pos, this.settings, game.replayManager); },
+    };
+  }
+
+  // Replays: the mouse is visible (no pointer lock) while the viewer shows, hidden otherwise
+  setReplayMouse(visible) { if (document.pointerLockElement) document.exitPointerLock(); document.body.classList.toggle('noNative', !visible); this.replayMouseVisible = visible; }
+
+  // spec: Game.Play(map, speed, startFrom, cameraMode, mods, players, replays); from the Lobby unless given
+  async start(spec = null) {
     const app = this.app;
+    spec ??= { speed: Lobby.Speed, startFrom: Lobby.StartFrom, mods: Lobby.Modifiers, cameraMode: Lobby.CameraMode, replays: null };
+    this.spec = spec;
     // Game.Play / Game.Restart / Results.Replay: MapParser.Decode(...) on every attempt, so Note.LastResult/Hittable never carry over
     const map = await MapManager.decodeStored(app.map); map.decodedAudio = app.map.decodedAudio;   // (decoded audio is immutable, reused)
     this.stepCount = 0;
     const settings = app.settings;
     app.sound.song.stop(); app.sound.song.setStream(map.decodedAudio); app.sound.updateVolume();
-    const attempt = new Attempt(map, Lobby.Speed, Lobby.StartFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0, Lobby.Modifiers, Lobby.CameraMode);
+    const attempt = new Attempt(map, spec.speed, spec.startFrom, settings, app.noteColors, map.decodedAudio ? map.decodedAudio.duration : 0, spec.mods, spec.cameraMode, spec.replays);
     // Attempt ctor: Length = max(1000 * song length, Map.Length + 1000)
     this.attempt = attempt;
     const runner = this.runner = new Runner(app.sound);
@@ -71,6 +103,17 @@ export class GameScene {
     this.hud.init(attempt, runner);
     app.renderer.cam.position = [0, 0, 3.75]; app.renderer.cam.rotation = [0, 0, 0]; app.renderer.cursor.position = [0, 0, 0];
     app.renderer.noteHitColor = [1, 1, 1];
+    // CursorManager._EnterTree; Runner.Play: Camera.Fov = settings.FoV (the replay's profile while watching one)
+    this.cursorManager.init(attempt); runner.replayManager = this.replayManager;
+    app.renderer.fov = attempt.IsReplay ? attempt.Replays[0].Settings.FoV : null;
+    this.fadeoutToggleValue = -1;
+    // Game._Ready: replay viewer, orthogonal camera, replay mode
+    const rm = this.replayManager;
+    rm.InitReplayLength(attempt); rm.ShowReplayViewer(attempt, attempt.IsReplay); rm.ShowOrthonogalCamera(attempt, attempt.IsReplay);
+    rm.pauseImg.src = 'assets/textures/ui/pause.png';
+    if (attempt.IsReplay) rm.CurrentMode = Mode.PLAYBACK;
+    else if (attempt.Settings.RecordReplays && !attempt.Modifiers.some((m) => m.Name === 'Autoplay')) { rm.NewReplay(attempt); rm.CurrentMode = Mode.RECORD; }
+    else rm.CurrentMode = Mode.NONE;
     runner.Play(attempt, settings);
     if (!attempt.IsReplay) {   // Game.cs after Runner.Play(); the attempt plays a decoded copy, so the count goes on MapManager's entry
       Stats.Instance.Attempts++;
@@ -82,10 +125,10 @@ export class GameScene {
     this.trail.reset(); this.app.renderer.trail = this.trail;   // fresh TrailRenderer per Game scene
     this.active = true; this.paused = false; this.acc = 0; this.last = performance.now();
     this.showPause(false, true);   // Game.cs: Menu.HideMenu(true)
-    if (settings.AbsoluteInput && !this.isFullscreen()) this.enterFullscreen().then((ok) => { if (!ok && this.active && !this.paused) { this.togglePause(true); notify('Absolute Input needs fullscreen. Press F11.'); } });
+    if (settings.AbsoluteInput && !attempt.IsReplay && !this.isFullscreen()) this.enterFullscreen().then((ok) => { if (!ok && this.active && !this.paused) { this.togglePause(true); notify('Absolute Input needs fullscreen. Press F11.'); } });
     this.app.menuCursor?.UpdateVisible(false, false);   // Game.cs: MenuCursor.Instance.UpdateVisible(false, false)
     document.getElementById('gameCanvas').style.visibility = 'visible';
-    this.lockPointer();
+    if (!attempt.IsReplay) this.lockPointer();   // Input.MouseMode = AbsoluteInput || IsReplay ? Visible : Captured
     if (!this.raf) this.raf = requestAnimationFrame((t) => this.frame(t));
   }
 
@@ -103,7 +146,8 @@ export class GameScene {
     const dt = now - this.last; this.last = now;
     const r = this.runner, a = this.attempt, pf = this.app.perf;
     const p0 = pf ? performance.now() : 0;
-    // Runner._Process: runs once per rendered frame with the real frame time (delta = (now - lastFrame) / 1e6 s)
+    // ReplayManager._Process (before Runner in game.tscn), then Runner._Process: once per rendered frame with the real frame time
+    this.replayManager.Process(r); this.cursorManager.process();
     if (r.Playing) r.process(dt / 1000);
     if (!this.active) return;                                  // process() may have ended the attempt
     const p1 = pf ? performance.now() : 0;
@@ -114,7 +158,7 @@ export class GameScene {
     const progress = a.Progress;
     const ren = this.app.renderer;
     // CursorManager._Process: while Playing, cursorMesh.RotationDegrees += Vector3.Back * (float)CursorRotation * (float)delta (float32)
-    if (r.Playing) ren.cursor.rotation = Math.fround(ren.cursor.rotation + Math.fround(Math.fround(this.app.settings.CursorRotation) * Math.fround(dt / 1000)));
+    if (r.Playing) ren.cursor.rotation = Math.fround(ren.cursor.rotation + Math.fround(Math.fround(this.cursorManager.settings.CursorRotation) * Math.fround(dt / 1000)));   // CursorManager settings
     // CursorManager/TrailRenderer._Process (child of CursorManager, so after its cursor rotation): Rotation.Z = cursor rotation in radians, size = Grid.Init CURSOR_SIZE * CursorScale
     this.trail.process(dt / 1000, a, r, this.app.settings, Math.fround(ren.cursor.rotation * Math.PI / 180), Math.fround(CURSOR_SIZE * this.app.settings.CursorScale));
     ren.updateSpace(dt / 1000, a.LastHitColour, this.app.settings.SpaceHitEffects);
@@ -127,7 +171,7 @@ export class GameScene {
   }
 
   onMouseMove(e) { // PlayerInputController -> Game.OnMouseMove (one call per motion event, UseAccumulatedInput = false)
-    if (!this.active || !this.runner.Playing || this.attempt.Modifiers.some((m) => m.Name === 'Autoplay')) return;       // if (!Runner.Playing || IsReplay || Autoplay) return
+    if (!this.active || !this.runner.Playing || this.attempt.IsReplay || this.attempt.Modifiers.some((m) => m.Name === 'Autoplay')) return;       // if (!Runner.Playing || IsReplay || Autoplay) return
     const evs = e.getCoalescedEvents?.().length ? e.getCoalescedEvents() : [e];
     for (const ev of evs) {
       // Godot (Windows, captured): relative = raw lLastX/lLastY counts, no DPI scaling. Chromium's movementX is the platform value, unscaled
@@ -149,11 +193,18 @@ export class GameScene {
     if (!this.active || e.repeat) return;
     if (e.code === 'Escape' && !SettingsManager.Shown) { if (performance.now() - (this.lockLostAt ?? 0) > 150) this.togglePause(); e.preventDefault(); }
     else if (e.code === 'Backquote') { this.restart(); e.preventDefault(); }
-    else if (e.code === 'Space') { this.runner.Skip(); e.preventDefault(); }   // OnPauseOrSkipPressed -> Runner.Skip
+    else if (e.code === 'Space') { if (this.attempt.IsReplay) this.replayManager.TogglePause(); else this.runner.Skip(); e.preventDefault(); }   // OnPauseOrSkipPressed
+    else if (e.code === 'F2') { if (this.attempt.IsReplay) this.replayManager.ShowReplayViewer(this.attempt); e.preventDefault(); }   // OnToggleReplayViewerVisibility
+    else if (e.code === 'F3') { if (this.attempt.IsReplay) this.replayManager.ShowOrthonogalCamera(this.attempt); e.preventDefault(); }   // OnToggleShowOrthonogalCamera
+    else if (e.code === 'KeyF') {   // OnToggleFade
+      const s = this.attempt.Settings; let val;
+      if (s.FadeOut > 0) { this.fadeoutToggleValue = s.FadeOut; val = 0; } else val = this.fadeoutToggleValue === -1 ? 100 : this.fadeoutToggleValue;
+      s.FadeOut = val;
+    } else if (e.code === 'KeyP') this.attempt.Settings.Pushback = !this.attempt.Settings.Pushback;   // OnTogglePushback
   }
 
   onLockChange() {
-    if (this.active && document.pointerLockElement !== this.app.canvas && this.runner.Playing && !this.paused) { this.lockLostAt = performance.now(); this.togglePause(true); }
+    if (this.active && !this.attempt.IsReplay && document.pointerLockElement !== this.app.canvas && this.runner.Playing && !this.paused) { this.lockLostAt = performance.now(); this.togglePause(true); }
   }
 
   // PlayerInputController.OnTogglePaused handler in Game.cs + PauseMenu.ShowMenu
@@ -179,7 +230,8 @@ export class GameScene {
     this.app.sound.song.pitchScale = a.Speed; this.app.sound.song.setPaused(!r.Playing);
     this.showPause(show);
     this.app.menuCursor?.UpdateVisible(show && this.app.settings.UseCursorInMenus);   // PauseMenu.ShowMenu
-    if (show) { if (document.pointerLockElement) document.exitPointerLock(); document.body.classList.remove('noNative'); } else { this.last = performance.now(); this.lockPointer(true); }
+    if (show) { if (document.pointerLockElement) document.exitPointerLock(); document.body.classList.remove('noNative'); }
+    else { this.last = performance.now(); if (a.IsReplay && this.replayManager.ViewerVisible) this.setReplayMouse(true); else this.lockPointer(true); }   // PauseMenu: IsReplay && ViewerVisible ? Visible : ...
   }
   showPause(v, instant = false) { // PauseMenu.ShowMenu: Visible = true on show; modulate tween 0.25 s (Quad); callback: Visible = Shown (read when the tween ends)
     const el = document.getElementById('pause'); this.pauseShown = v;
@@ -191,7 +243,8 @@ export class GameScene {
   restart() {
     this.showPause(false);
     this.runner.Fail(); this.runner.Stop(false);
-    this.start();
+    const a = this.attempt;
+    this.start({ speed: a.Speed, startFrom: a.StartFrom, mods: a.Modifiers, cameraMode: a.CameraMode, replays: a.Replays });   // new Attempt from the old one's values
   }
 
   finish(attempt) {

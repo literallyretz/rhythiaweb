@@ -17,6 +17,7 @@ import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
 import { MapManager } from './map/MapManager.js';
 import { Stats, STARTED } from './Stats.js';
+import { parseReplay, sameReplay } from './map/Replay.js';
 import { Lobby } from './Lobby.js';
 import { MainMenu } from './ui/MainMenu.js';
 import { SoundManager } from './audio/SoundManager.js';
@@ -163,6 +164,20 @@ async function boot() {
     inp.onchange = async () => { const n = await userContent.importFiles(kind, inp.files); app.settings.refreshUserLists(); notify(`Imported ${n} ${kind}`); };
     inp.click();
   };
+  // Rhythia._Ready: files_dropped -> maps are bulk-imported (and the menu moves to Play), .phxr replays are played together when they match the first
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    if (app.game?.active) return;   // not while a map is being played
+    const files = [...(e.dataTransfer?.files ?? [])], maps = [], replays = [];
+    for (const file of files) {
+      const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase();
+      if (['sspm', 'phxm', 'txt', 'rhm'].includes(ext)) maps.push(file);
+      else if (ext === 'phxr') { const r = await parseReplay(new Uint8Array(await file.arrayBuffer()), file.name.replace(/\.[^.]*$/, '')); if (r.Valid) replays.push(r); }
+    }
+    if (maps.length > 0) { MapManager.bulkImport(maps); if (app.menuRunning) app.mainMenu.Transition(app.mainMenu.PlayMenu); }
+    if (replays.length > 0) app.playReplay(replays.filter((r) => sameReplay(r, replays[0])));
+  });
   Lobby.init(); app.mainMenu = new MainMenu(app);                                   // Lobby._Ready, MainMenu._Ready
   app.jukeboxPanel = new JukeboxPanel(app, $('menu'));                               // JukeboxPanel node of main_menu.tscn
   let lastT = performance.now();
@@ -233,12 +248,24 @@ app.playMap = async (map) => {
     await app.play();
   } finally { app.starting = false; }
 };
-app.play = async (fromResults) => {
+// Game.Play(MapParser.Decode(replay.MapFilePath), replay.Speed, replay.StartFrom, replay.CameraMode, replay.Modifiers, null, replays)
+app.playReplay = async (replays) => {
+  const map = replays[0].Map;
+  if (!map || app.starting) return;
+  app.starting = true;
+  try {
+    app.map = map; await app.ensureAudio(map);
+    app.coverURL = app.mainMenu.MapList.coverURL(map);
+    const r = replays[0];
+    await app.play(false, { speed: r.Speed, startFrom: r.StartFrom, mods: r.Modifiers, cameraMode: r.CameraMode, replays });
+  } finally { app.starting = false; }
+};
+app.play = async (fromResults, spec = null) => {
   await app.sound.resume();
   await fade(1);
   app.menuRunning = false; $('menuCanvas').style.display = 'none'; $('menu').classList.add('hidden'); app.results.hide();
   $('hud').classList.remove('hidden');
-  await app.game.start();
+  await app.game.start(spec);
   await fade(0);
 };
 
