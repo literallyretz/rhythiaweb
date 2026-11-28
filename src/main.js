@@ -23,6 +23,7 @@ import { MainMenu } from './ui/MainMenu.js';
 import { SoundManager } from './audio/SoundManager.js';
 import { GameRenderer } from './render/GameRenderer.js';
 import { MenuBackground } from './render/MenuBackground.js';
+import { SpaceRenderer } from './render/Spaces.js';
 import { LoadingScene } from './scenes/Loading.js';
 import { GameScene } from './scenes/Game.js';
 import { ResultsScene } from './scenes/Results.js';
@@ -157,7 +158,10 @@ async function boot() {
   app.settingsMenu = new SettingsMenu(app); initPopups(app); app.menuCursor = new MenuCursor(app);
   $('btnSettings').disabled = false; $('btnSettings').onclick = () => app.settingsMenu.showMenu();
   $('pSettings').disabled = false; $('pSettings').onclick = () => app.settingsMenu.showMenu();
-  document.addEventListener('mousemove', (e) => { if (app.menuBg) app.menuBg.mouseX = e.clientX - window.innerWidth / 2; });
+  document.addEventListener('mousemove', (e) => {
+    if (app.menuBg) app.menuBg.mouseX = e.clientX - window.innerWidth / 2;
+    if (app.spaces) { app.spaces.mouseX = e.clientX - window.innerWidth / 2; app.spaces.mouseY = e.clientY - window.innerHeight / 2; }   // viewport mouse - visible size / 2
+  });
   hooks.refreshMenuMusic = () => app.sound.refreshMenuMusicPlayback(); hooks.reloadSkin = () => app.loadSkinContent();
   hooks.importUserFiles = (kind) => {
     const inp = Object.assign(document.createElement('input'), { type: 'file', multiple: true, accept: kind === 'meshes' ? '.obj' : '.txt' });
@@ -230,9 +234,11 @@ app.toMenu = async (withFade) => {
   const loop = (now) => {
     if (!app.menuRunning) return; const pf = app.menuPerf; pf?.begin(); const t = pf ? performance.now() : 0;
     const space = app.settings.MenuSpace === 'skin' ? 'waves' : app.settings.MenuSpace;   // SkinManager: "skin" = the skin's MenuSpace (default skin: waves)
-    if (offBackground) {} else if (space === 'waves') app.menuBg.frame(menuSpeed.scale(app.settings)); else app.menuBg.clear(space);
+    if (offBackground) {} else if (space === 'waves') app.menuBg.frame(menuSpeed.scale(app.settings));
+    else if (space === 'void' || space === 'solid') app.menuBg.clear(space);
+    else (app.spaces ??= new SpaceRenderer(app.menuBg.gl, app)).frame(space, app.menuBg.canvas, menuSpeed.scale(app.settings), app.settings);
     pf?.end(app.tickMs || 0, 0, performance.now() - t, 0);
-    if (space === 'waves') menuSpeed.sample(now, app.settings);
+    if (space !== 'void' && space !== 'solid') menuSpeed.sample(now, app.settings);
     requestAnimationFrame(loop);
   }; requestAnimationFrame(loop);
   await fade(0);

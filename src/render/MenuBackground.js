@@ -72,6 +72,7 @@ export class MenuBackground {
   async setCover(blob) {
     const img = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).catch((e) => { this.coverAvg = null; throw e; });
     this.coverAvg = averageColor(img);   // Solid.UpdateMap: average of the cover's non-transparent pixels
+    this.onCover?.(this.coverAvg);       // other spaces' UpdateMap (Squircles)
     this.imgB = this.imgA; this.imgA = makeTexture(this.gl, img, { srgb: true }); this.imageLerp = 0; this.lerpStart = performance.now();
   }
   _ensureFbo(w, h) {
