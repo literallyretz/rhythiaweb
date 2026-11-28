@@ -6,7 +6,7 @@ I'm a fan of [Rhythia](https://github.com/Rhythia/Client) and wanted to be able 
 
 ## What works right now
 
-The main menu, the Play menu with a map list (search, sort, random), map import (`.phxm`, `.sspm`, `.rhm`, `.txt`) and export, speed and start-from, gameplay with the original HUD and settings, the results screen and the menu music player. The menu background can be switched (waves, void, solid) and its resolution lowered for weaker GPUs. One map is bundled. All nine modifiers work (including Autoplay), as do both camera modes (Lock and Spin), the Grid layout and local leaderboards.
+The main menu, the Play menu with a map list (search, sort, random), map import (`.phxm`, `.sspm`, `.rhm`, `.txt`) and export, speed and start-from, gameplay with the original HUD and settings, the results screen and the menu music player. The menu background can be switched between all of the original's menu spaces and its resolution lowered for weaker GPUs. One map is bundled. All nine modifiers work (including Autoplay), as do both camera modes (Lock and Spin), the Grid layout, local leaderboards, replays (recording, watching, seeking, dropping `.phxr` files onto the page), Stats and the Extras menu.
 
 ## Running it yourself
 
