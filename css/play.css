@@ -1,7 +1,7 @@
 /* Menus/Play (scenes/main_menu.tscn) + prefabs/map_button_wide.tscn + themes/theme.tres. 1 Godot px = 1 CSS px. */
-#plBg{position:absolute;inset:0;border-radius:3px 0 0 3px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}   /* ui_blur.gdshader (brightness 1) */
-#plTile{position:absolute;inset:0;overflow:hidden;border-radius:inherit}
-#plTile::before{content:"";position:absolute;left:0;top:0;bottom:0;right:-32px;background:url(../assets/skin/ui/background_tile.png);background-size:32px 32px;image-rendering:pixelated;animation:plTile 1s linear infinite;will-change:transform}   /* background_tile.gdshader: UV.x -= TIME */
+#plBg,.exBg{position:absolute;inset:0;border-radius:3px 0 0 3px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}   /* ui_blur.gdshader (brightness 1) */
+#plTile,.exTile{position:absolute;inset:0;overflow:hidden;border-radius:inherit}
+#plTile::before,.exTile::before{content:"";position:absolute;left:0;top:0;bottom:0;right:-32px;background:url(../assets/skin/ui/background_tile.png);background-size:32px 32px;image-rendering:pixelated;animation:plTile 1s linear infinite;will-change:transform}   /* background_tile.gdshader: UV.x -= TIME */
 @keyframes plTile{to{transform:translateX(-32px)}}   /* same 32 px/s scroll as background-position, but on the compositor: no repaint per frame */
 
 /* MapList: anchor_left .5, anchor_right 1, offset_top 128, offset_right -8, offset_bottom -80 */
@@ -208,3 +208,30 @@
 .sp-spd{position:absolute;left:16px;top:calc(40% + 4px);font-size:18px;white-space:nowrap}
 .sp-mods{position:absolute;left:16px;top:calc(40% + 28px);right:calc(40% + 4px);bottom:8px;display:flex;gap:2px}
 .sp-mods img{height:100%;width:auto;display:block}   /* TextureRect expand_mode fit width proportional */
+/* Menus/Extras (scenes/main_menu.tscn) */
+#extras{pointer-events:none}#extras button,#extras .exSc,#extras .exRow{pointer-events:auto}   /* mouse_filter Ignore on the panels */
+/* SoundSpace: flat Button, 200x200 centred; Logo inset 20; RichTextLabel (Ubuntu Medium 16) across the bottom 24 px */
+.exSS{position:absolute;left:calc(50% - 100px);top:calc(50% - 100px);width:200px;height:200px;padding:0;border:0;background:none;cursor:pointer}
+.exSS img{position:absolute;left:20px;top:20px;right:20px;bottom:20px;width:160px;height:160px;pointer-events:none}
+.exSSl{position:absolute;left:0;right:0;bottom:0;height:24px;text-align:center;font:500 16px Ubuntu,sans-serif;color:rgba(255,255,255,.251);white-space:nowrap;pointer-events:none}
+.exSS.hov .exSSl .n{color:#fff}
+/* Stats (anchors 0.25..0.5, offsets top 200 / right -150 / bottom -200, min 400x400, grows left and both ways vertically);
+   Contributors (anchors 0.5..0.75, offsets 150 / 160 / 230 / -160, min 400x400, grows right and both ways vertically) */
+.exPanel{position:absolute}
+.exStats{right:calc(50% + 150px);width:max(400px,calc(25% - 150px));top:min(200px,calc(50% - 200px));height:max(400px,calc(100% - 400px))}
+.exCred{left:calc(50% + 150px);width:max(400px,calc(25% + 80px));top:min(160px,calc(50% - 200px));height:max(400px,calc(100% - 320px))}
+.exPb{position:absolute;inset:0;background:rgba(0,0,0,.6275);border-radius:4px}
+.exHdr{position:absolute;left:0;right:0;top:8px;text-align:center;font:700 32px Roboto,sans-serif;color:#fff;line-height:1.172}
+.exSc{position:absolute;left:0;right:0;top:44px;bottom:0;overflow:auto}
+.exSc::-webkit-scrollbar{width:4px;height:4px}.exSc::-webkit-scrollbar-track{background:rgba(0,0,0,.8627)}.exSc::-webkit-scrollbar-thumb{background:#fff;border-radius:0 4px 4px 0}
+@supports not selector(::-webkit-scrollbar){.exSc{scrollbar-width:thin;scrollbar-color:#fff rgba(0,0,0,.8627)}}
+.exV{display:flex;flex-direction:column;min-height:100%;overflow:hidden}
+.exSv{gap:2px}.exCv{gap:12px}
+.exRow{position:relative;flex:none;min-width:380px;height:32px}
+.exRow span{position:absolute;top:0;bottom:0;display:flex;align-items:center;font-size:16px;color:#fff;white-space:nowrap}
+.exRow .k{left:0;right:calc(50% + 4px);justify-content:flex-end;font:500 16px Ubuntu,sans-serif}
+.exRow .v{left:calc(50% + 4px);right:0;font:400 16px Ubuntu,sans-serif}
+/* RichTextLabels (theme.tres default font: Roboto Medium), [font_size=20], centred, modulate tint */
+.exC{position:relative;flex:none;text-align:center;font:500 20px Roboto,sans-serif;line-height:1.172}
+.exC .sub{font-size:16px;opacity:.733}
+.exCb{position:absolute;inset:0;padding:0;border:0;background:none;cursor:pointer}   /* flat Button behind the label */

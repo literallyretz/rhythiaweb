@@ -5,6 +5,7 @@ import { BREAK_TIME } from '../constants.js';
 import { binarySearch, fround, toInt } from '../util/misc.js';
 import { AutoplayHandler } from './AutoplayHandler.js';
 import { recordScore } from '../map/Leaderboard.js';
+import { Stats } from '../Stats.js';
 
 export class Runner {
   constructor(sound) {
@@ -118,6 +119,7 @@ export class Runner {
       this.ObjectIndicesEnd[key] = attempt.Objects[key].length;
     }
     this.noteTimestamps = attempt.Objects.Note.map((n) => n.Millisecond);
+    attempt.TimeStarted = performance.now();   // HudManager.Init(); Attempt.TimeStarted = Time.GetTicksUsec()
     if (!this._connected) { this._connected = true; this.on('hitResultChanged', (i, r) => this.onHitResultChanged(i, r)); }
     this.emit('attemptStatsUpdated', attempt);
     for (const mod of attempt.Modifiers) {   // map and render modifiers apply from the start (HudManager.DisplayModifier -> 'displayModifier')
@@ -202,8 +204,22 @@ export class Runner {
     this.Playing = false;
     this.StopQueued = false;
     a.Stopped = true;
-    // (replay saving and Stats are not ported) personal bests: every attempt from the start that wasn't autoplayed, failed or not
-    if (!a.IsReplay && a.StartFrom === 0 && !this.autoplayEnabled) recordScore(a, this.Speed);
+    // (replay saving is not ported)
+    if (!a.IsReplay) {   // && !Rhythia.TempMode (no temp mode in the browser)
+      const st = Stats.Instance;
+      st.GamePlaytime += Math.floor((performance.now() - a.TimeStarted) / 1000);
+      st.TotalDistance += Math.trunc(a.DistanceMM);
+      if (a.StartFrom === 0 && !this.autoplayEnabled) {   // personal bests: every attempt from the start that wasn't autoplayed, failed or not
+        recordScore(a, this.Speed);
+        if (a.Qualifies) {
+          st.Passes++; st.TotalScore += a.Score;
+          if (a.Accuracy === 100) st.FullCombos++;
+          if (a.Score > st.HighestScore) st.HighestScore = a.Score;
+          st.AverageAccuracy = (st.AverageAccuracy + a.Accuracy) / st.Passes;   // as in the original (not a true running mean)
+        }
+      }
+      st.ForceUpdate();
+    }
     if (results && this.onStop) this.onStop(a);
   }
 
@@ -224,7 +240,11 @@ export class Runner {
         a.Combo++; a.ComboMultiplierProgress++;
         a.LastHitColour = this.noteColors[noteIndex % this.noteColors.length];
         a.Score += hitScore;
-        a.HitsInfo[noteIndex] = lateness;
+        if (!a.IsReplay) {
+          Stats.Instance.NotesHit++;
+          if (a.Combo > Stats.Instance.HighestCombo) Stats.Instance.HighestCombo = a.Combo;
+          a.HitsInfo[noteIndex] = lateness;
+        }
         if (a.ComboMultiplierProgress === a.ComboMultiplierIncrement) {
           if (a.ComboMultiplier < 8) {
             a.ComboMultiplierProgress = a.ComboMultiplier === 7 ? a.ComboMultiplierIncrement : 0;
@@ -237,7 +257,7 @@ export class Runner {
         a.Accuracy = fround(Math.floor(fround(fround(a.Hits / a.Sum) * 10000)) / 100); // Mathf.Floor(...) / 100 stays float
         a.Combo = 0; a.ComboMultiplierProgress = 0;
         a.ComboMultiplier = Math.max(1, a.ComboMultiplier - 1);
-        a.HitsInfo[noteIndex] = -1;
+        if (!a.IsReplay) { Stats.Instance.NotesMissed++; a.HitsInfo[noteIndex] = -1; }
         break;
       default: break;
     }

@@ -5,6 +5,8 @@ import { MapInfo } from './MapInfo.js';
 import { MapList } from './MapList.js';
 import { Lobby } from '../Lobby.js';
 import { notify } from './Toast.js';
+import { Extras } from './Extras.js';
+import { OptionPopup } from './OptionPopup.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -12,13 +14,26 @@ export class MainMenu {
   constructor(app) {
     this.app = app;
     this.HomeMenu = $('home'); this.PlayMenu = $('play');
-    this.tabs = new Map([[this.HomeMenu, $('tabHome')], [this.PlayMenu, $('tabPlay')]]);
+    this.ExtrasMenu = Object.assign(document.createElement('div'), { id: 'extras', className: 'mpanel' });
+    this.ExtrasMenu.style.display = 'none'; this.ExtrasMenu.style.opacity = 0; this.PlayMenu.after(this.ExtrasMenu);
+    this.Extras = new Extras(app, this.ExtrasMenu);
+    this.tabs = new Map([[this.HomeMenu, $('tabHome')], [this.PlayMenu, $('tabPlay')], [this.ExtrasMenu, $('tabExtras')]]);
     this.CurrentMenu = this.HomeMenu; this.LastMenu = this.HomeMenu;
     this.MapList = new MapList(app);
     this.MapInfo = new MapInfo(app, this.MapList);
     $('tabHome').onclick = () => this.Transition(this.HomeMenu);
     $('tabPlay').onclick = () => this.Transition(this.PlayMenu);
     $('btnPlay').onclick = () => this.Transition(this.PlayMenu);          // Home/Buttons/Play -> Menus/Play
+    $('tabExtras').onclick = () => this.Transition(this.ExtrasMenu);
+    $('btnExtras').onclick = () => this.Transition(this.ExtrasMenu);      // Home/Buttons/Extras -> Menus/Extras
+    // QuitButton: "Quit" popup; Escape on the Home menu opens it too
+    const quitPopup = new OptionPopup('Quit', '<p style="text-align:center">Are you sure?</p>');
+    quitPopup.AddOption('Quit', () => app.quitGame());
+    quitPopup.AddOption('Cancel', () => quitPopup.Hide());
+    $('btnQuit').onclick = () => quitPopup.Show();
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && app.menuRunning && this.CurrentMenu === this.HomeMenu && !app.settingsMenu?.Shown && !e.defaultPrevented) quitPopup.Show();   // an open popup takes Escape first (capture listeners added earlier)
+    }, true);
     window.addEventListener('mouseup', (e) => {                          // MouseButton.Xbutton1 / Xbutton2
       if (!app.menuRunning) return;
       if (e.button === 3) this.Transition(this.HomeMenu); else if (e.button === 4) this.Transition(this.LastMenu);
@@ -39,6 +54,7 @@ export class MainMenu {
     tweenOpacity(last, 0, time, quadIn).then(() => { if (this.LastMenu === last && this.CurrentMenu !== last) last.style.display = 'none'; });
     cur.style.display = '';
     tweenOpacity(cur, 1, time, quadInOut);
+    if (cur === this.ExtrasMenu) this.Extras.Shown(true); else if (last === this.ExtrasMenu) this.Extras.Shown(false);   // StatsPanel _EnterTree / _ExitTree
     this.app.sound.refreshMenuMusicPlayback();
   }
 

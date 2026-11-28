@@ -10,6 +10,7 @@ import { SettingsManager } from '../SettingsManager.js';
 import { tweenOpacity } from '../util/tween.js';
 import { notify } from '../ui/Toast.js';
 import { Lobby } from '../Lobby.js';
+import { Stats } from '../Stats.js';
 import { MapManager } from '../map/MapManager.js';
 
 export const STEP_MS = 1000 / 120; // project.godot physics_ticks_per_second=120 (HUD-only _PhysicsProcess)
@@ -71,6 +72,10 @@ export class GameScene {
     app.renderer.cam.position = [0, 0, 3.75]; app.renderer.cam.rotation = [0, 0, 0]; app.renderer.cursor.position = [0, 0, 0];
     app.renderer.noteHitColor = [1, 1, 1];
     runner.Play(attempt, settings);
+    if (!attempt.IsReplay) {   // Game.cs after Runner.Play(); the attempt plays a decoded copy, so the count goes on MapManager's entry
+      Stats.Instance.Attempts++;
+      const stored = MapManager.GetMapById(attempt.Map.Id) ?? attempt.Map; stored.PlayCount++; attempt.Map.PlayCount = stored.PlayCount; MapManager.Update(stored);
+    }
     this.app.sound.beginGameplayScope(attempt.Map);         // Runner.Play -> SoundManager.BeginGameplayScope
     this.app.renderer.cursor.rotation = 0;                  // CursorManager.Init: cursorMesh.Transform = Identity
     this.app.renderer.visAssist = settings.VisibilityAssist;   // Grid.Init: VisibilityAssist.Visible = setting (once per attempt)

@@ -16,6 +16,7 @@ import { notify } from './ui/Toast.js';
 import { tweenOpacity } from './util/tween.js';
 import { parseSSPM } from './map/MapParser.js';
 import { MapManager } from './map/MapManager.js';
+import { Stats, STARTED } from './Stats.js';
 import { Lobby } from './Lobby.js';
 import { MainMenu } from './ui/MainMenu.js';
 import { SoundManager } from './audio/SoundManager.js';
@@ -126,6 +127,7 @@ async function boot() {
       try { localStorage.setItem('rhythia/seeded', '1'); } catch {}
     }
     await MapManager.initialize();
+    await Stats.Initialize(); Stats.Instance.GamesOpened++;   // Rhythia._Ready (Stats.Initialize runs on the same database)
     const map = MapManager.Maps[0] ?? null; app.map = map;
     Object.defineProperty(app.sound, 'maps', { get: () => MapManager.Maps, set() {}, configurable: true });   // MapManager.Maps
     for (const m of MapManager.Maps) await app.ensureAudio(m);
@@ -150,7 +152,7 @@ async function boot() {
   $('ver').textContent = `v${VERSION}`; $('btnNotes').href = $('btnNotes').href.replace('VERSION', VERSION);
   // Settings: scenes/main.tscn Settings node (SettingsMenu) + the SETTINGS buttons (SettingsMenuButton.cs, PauseMenu.cs)
   hooks.updateVolume = () => app.sound.updateVolume(); SettingsManager.onLoaded(() => app.sound.updateVolume());
-  window.addEventListener('pagehide', () => SettingsManager.Save());
+  window.addEventListener('pagehide', () => { if (!app.Quitting) app.quit(true); });   // NotificationWMCloseRequest
   app.settingsMenu = new SettingsMenu(app); initPopups(app); app.menuCursor = new MenuCursor(app);
   $('btnSettings').disabled = false; $('btnSettings').onclick = () => app.settingsMenu.showMenu();
   $('pSettings').disabled = false; $('pSettings').onclick = () => app.settingsMenu.showMenu();
@@ -173,6 +175,27 @@ async function boot() {
   window.__rhythiaReady = true;
 }
 
+// Rhythia.Quit / _Notification(NotificationWMCloseRequest). Closing the tab is the browser's close request; the
+// QUIT button (QuitButton.cs) sends the same request. The browser may end the page before the saves finish.
+let playtimeMark = STARTED;
+app.quit = (closeRequest) => {
+  if (closeRequest && app.game?.active) Stats.Instance.RageQuits++;   // SceneManager.Scene is Game
+  app.Quitting = true;
+  const r = app.game?.runner;
+  if (r?.Playing && !r.Attempt?.IsReplay) r.Stop(false);
+  const now = performance.now(); Stats.Instance.TotalPlaytime += Math.floor((now - playtimeMark) / 1000); playtimeMark = now;
+  return Promise.all([SettingsManager.Save(), Stats.Save()]);
+};
+// QuitButton.quit: the close request, then GetTree().Quit() 0.5 s later while MainMenu._Process fades the music
+// (VolumeDb lerps to -80 at delta * 2). A page can only close a tab that a script opened, so otherwise it leaves to a blank page.
+app.quitGame = () => {
+  app.quit(true);
+  const g = app.sound.songGain.gain, t0 = performance.now(); let db = 20 * Math.log10(Math.max(g.value, 1e-9)), last = t0;
+  const fadeStep = (now) => { const d = (now - last) / 1000; last = now; db += (-80 - db) * Math.min(1, d * 2); g.value = 10 ** (db / 20); if (now - t0 < 500) requestAnimationFrame(fadeStep); };
+  requestAnimationFrame(fadeStep);
+  setTimeout(() => { window.close(); setTimeout(() => location.replace('about:blank'), 100); }, 500);
+};
+window.addEventListener('pageshow', (e) => { if (e.persisted) app.Quitting = false; });   // restored from the back/forward cache
 app.sound_ready = () => { // browsers keep the AudioContext suspended until the first user gesture
   const go = () => { app.sound.resume(); };   // the browser keeps the context suspended; playback queued by start() begins when it resumes
   if (app.sound.ctx.state === 'running') return;
